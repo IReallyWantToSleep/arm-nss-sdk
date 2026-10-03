@@ -42,7 +42,7 @@ enum FfxApiNssShaderQualityMode
 /// @ingroup ffxNss
 enum FfxApiCreateContextNssFlags
 {
-    FFX_API_NSS_CONTEXT_FLAG_QUANTIZED          = (1 << 0),  ///< Use a quantized data graph. Resources will be quantized to 8 bits.
+    FFX_API_NSS_CONTEXT_FLAG_QUANTIZED          = (1 << 0),  ///< Use 8-bit quantized NSS model resources.
     FFX_API_NSS_CONTEXT_FLAG_HIGH_DYNAMIC_RANGE = (1 << 1),  ///< A bit indicating if the input color data provided is using a high-dynamic range.
     FFX_API_NSS_CONTEXT_FLAG_DEPTH_INVERTED     = (1 << 2),  ///< A bit indicating that the input depth buffer data provided is inverted [1..0].
     FFX_API_NSS_CONTEXT_FLAG_DEPTH_INFINITE     = (1 << 3),  ///< A bit indicating that the input depth buffer data provided is using an infinite far plane.

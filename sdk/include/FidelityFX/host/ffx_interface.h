@@ -370,42 +370,8 @@ typedef FfxErrorCode (*FfxCreatePipelineFunc)(FfxInterface*                 back
                                               FfxUInt32                     effectContextId,
                                               FfxPipelineState*             outPipeline);
 
-/// Create a data graph pipeline.
-///
-/// A data graph pipeline contains the shader as well as resource bindpoints
-/// and samplers.
-///
-/// @param [in] backendInterface                    A pointer to the backend interface.
-/// @param [in] effect                              The identifier for the effect.
-/// @param [in] pass                                The identifier for the pass.
-/// @param [in] permutationOptions                  Permutation flags to identify shader variants
-/// @param [in] pipelineDescription                 A pointer to a <c><i>FfxPipelineDescription</i></c> describing the pipeline to be created.
-/// @param [in] effectContextId                     The context space to be used for the effect in question.
-/// @param [in] render_width                        The render width.
-/// @param [in] render_height                       The render height.
-/// @param [out] outPipeline                        A pointer to a <c><i>FfxPipelineState</i></c> structure which should be populated.
-///
-/// @retval
-/// FFX_OK                                          The operation completed successfully.
-/// @retval
-/// Anything else                                   The operation failed.
-///
-/// @ingroup FfxInterface
-typedef FfxErrorCode (*FfxCreateDataGraphPipelineFunc)(FfxInterface*                 backendInterface,
-                                                       FfxEffect                     effect,
-                                                       FfxPass                       pass,
-                                                       uint32_t                      permutationOptions,
-                                                       const FfxPipelineDescription* pipelineDescription,
-                                                       FfxUInt32                     effectContextId,
-                                                       FfxUInt32                     render_width,
-                                                       FfxUInt32                     render_height,
-                                                       FfxPipelineState*             outPipeline);
-// TODO: the optical flow also use data graph pipeline, check later if this can merged into the above function.
-typedef FfxErrorCode (*FfxCreateOpticalFlowPipelineFunc)(
-    FfxInterface* backendInterface, const char* name, const FfxOpticalFlowDescription& ofDesc, FfxUInt32 effectContextId, FfxPipelineState* outPipeline);
-
 typedef FfxErrorCode (*FfxGetPermutationBlobByIndexFunc)(
-    FfxEffect effectId, FfxPass passId, uint32_t permutationOptions, FfxShaderBlob* outBlob, FfxShaderBlob* outVertBlob, FfxDataGraphBlob* outDataGraphBlob);
+    FfxEffect effectId, FfxPass passId, uint32_t permutationOptions, FfxShaderBlob* outBlob, FfxShaderBlob* outVertBlob);
 
 /// Destroy a render pipeline.
 ///
@@ -463,38 +429,6 @@ typedef FfxErrorCode (*FfxScheduleGpuJobFunc)(FfxInterface* backendInterface, co
 ///
 /// @ingroup FfxInterface
 typedef FfxErrorCode (*FfxExecuteGpuJobsFunc)(FfxInterface* backendInterface, FfxCommandList commandList, FfxUInt32 effectContextId);
-
-typedef enum FfxUiCompositionFlags
-{
-    FFX_UI_COMPOSITION_FLAG_USE_PREMUL_ALPHA                    = (1 << 0),  ///< A bit indicating that we use premultiplied alpha for UI composition
-    FFX_UI_COMPOSITION_FLAG_ENABLE_INTERNAL_UI_DOUBLE_BUFFERING = (1 << 1),  ///< A bit indicating that the swapchain should doublebuffer the UI resource
-} FfxUiCompositionFlags;
-
-typedef FfxErrorCode (*FfxPresentCallbackFunc)(const FfxPresentCallbackDescription* params, void*);
-typedef FfxErrorCode (*FfxFrameGenerationDispatchFunc)(const FfxFrameGenerationDispatchDescription* params, void*);
-typedef FfxErrorCode (*FfxWaitCallbackFunc)(const char* fenceName, uint64_t fenceValueToWaitFor);
-
-/// A structure representing the configuration options to pass to FrameInterpolationSwapChain
-///
-/// @ingroup FfxInterface
-typedef struct FfxFrameGenerationConfig
-{
-    FfxSwapchain                   swapChain;                       ///< The <c><i>FfxSwapchain</i></c> to use with frame interpolation
-    FfxPresentCallbackFunc         presentCallback;                 ///< A UI composition callback to call when finalizing the frame image
-    void*                          presentCallbackContext;          ///< A pointer to be passed to the UI composition callback
-    FfxFrameGenerationDispatchFunc frameGenerationCallback;         ///< The frame generation callback to use to generate the interpolated frame
-    void*                          frameGenerationCallbackContext;  ///< A pointer to be passed to the frame generation callback
-    bool                           frameGenerationEnabled;          ///< Sets the state of frame generation. Set to false to disable frame generation
-    bool                           allowAsyncWorkloads;      ///< Sets the state of async workloads. Set to true to enable interpolation work on async compute
-    FfxUInt32                      flags;                    ///< Flags
-    bool                           onlyPresentInterpolated;  ///< Set to true to only present interpolated frame
-    uint64_t                       frameID;                  ///< A frame identifier used to synchronize resource usage in workloads
-    bool                           drawDebugPacingLines;     ///< Sets the state of pacing debug lines. Set to true to display debug lines
-    bool                           dumpGeneratedFrame;       ///< Sets the state of frame dumping. Set to true to dump interpolated frames to disk
-    const char*                    dumpGeneratedFramePath;   ///< The path to dump generated frames to disk. If null, a default path will be used
-} FfxFrameGenerationConfig;
-
-typedef FfxErrorCode (*FfxSwapChainConfigureFrameGenerationFunc)(FfxFrameGenerationConfig const* config);
 
 /// Register a <b>Thread Safe</b> constant buffer allocator to be used by the backend.
 ///
@@ -598,15 +532,12 @@ typedef struct FfxInterface
     FfxStageConstantBufferDataFunc   fpStageConstantBufferDataFunc;  ///< A callback function to copy constant buffer data into staging memory.
     FfxCreatePipelineFunc            fpCreateComputePipeline;        ///< A callback function to create a compute pipeline.
     FfxCreatePipelineFunc            fpCreateGraphicsPipeline;       ///< A callback function to create a render pipeline.
-    FfxCreateDataGraphPipelineFunc   fpCreateDataGraphPipeline;      ///< A callback function to create a data graph pipeline.
-    FfxCreateOpticalFlowPipelineFunc fpCreateOpticalFlowPipeline;    ///< A callback function to create a data graph pipeline for optical flow.
     FfxDestroyPipelineFunc           fpDestroyPipeline;              ///< A callback function to destroy a render or compute pipeline.
     FfxScheduleGpuJobFunc            fpScheduleGpuJob;               ///< A callback function to schedule a render job.
     FfxExecuteGpuJobsFunc            fpExecuteGpuJobs;               ///< A callback function to execute all queued render jobs.
 
     // FidelityFX SDK 1.1 callback handles
-    FfxGetPermutationBlobByIndexFunc         fpGetPermutationBlobByIndex;
-    FfxSwapChainConfigureFrameGenerationFunc fpSwapChainConfigureFrameGeneration;  ///< A callback function to configure swap chain present callback.
+    FfxGetPermutationBlobByIndexFunc fpGetPermutationBlobByIndex;
 
     FfxRegisterConstantBufferAllocatorFunc
         fpRegisterConstantBufferAllocator;  ///< A callback function to register a custom <b>Thread Safe</b> constant buffer allocator.

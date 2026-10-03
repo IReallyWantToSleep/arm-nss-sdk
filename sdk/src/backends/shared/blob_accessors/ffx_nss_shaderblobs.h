@@ -33,7 +33,7 @@ extern "C" {
 
 // Get a HLSL shader blob for the specified pass and permutation index.
 FfxErrorCode nssGetPermutationBlobByIndex(
-    FfxNssPass passId, uint32_t permutationOptions, FfxShaderBlob* outShaderBlob, FfxShaderBlob* outVertBlob, FfxDataGraphBlob* outDataGraphBlob);
+    FfxNssPass passId, uint32_t permutationOptions, FfxShaderBlob* outShaderBlob, FfxShaderBlob* outVertBlob);
 
 #if defined(__cplusplus)
 }

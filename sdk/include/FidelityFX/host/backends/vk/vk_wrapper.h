@@ -24,8 +24,6 @@ typedef struct VkFunctionTable
     PFN_vkGetPhysicalDeviceProperties2                                      vkGetPhysicalDeviceProperties2                                      = 0;
     PFN_vkGetPhysicalDeviceFeatures2                                        vkGetPhysicalDeviceFeatures2                                        = 0;
     PFN_vkGetPhysicalDeviceQueueFamilyProperties                            vkGetPhysicalDeviceQueueFamilyProperties                            = 0;
-    PFN_vkGetPhysicalDeviceQueueFamilyDataGraphEngineOperationPropertiesARM vkGetPhysicalDeviceQueueFamilyDataGraphEngineOperationPropertiesARM = 0;
-    PFN_vkGetPhysicalDeviceSurfaceSupportKHR                                vkGetPhysicalDeviceSurfaceSupportKHR                                = 0;
     PFN_vkGetDeviceProcAddr                                                 vkGetDeviceProcAddr                                                 = 0;
     PFN_vkSetDebugUtilsObjectNameEXT                                        vkSetDebugUtilsObjectNameEXT                                        = 0;
     PFN_vkCreateDescriptorPool                                              vkCreateDescriptorPool                                              = 0;
@@ -85,15 +83,10 @@ typedef struct VkFunctionTable
     PFN_vkCmdEndRenderPass                                                  vkCmdEndRenderPass                                                  = 0;
     PFN_vkCmdDraw                                                           vkCmdDraw                                                           = 0;
     PFN_vkWaitSemaphores                                                    vkWaitSemaphores                                                    = 0;
-    PFN_vkDestroySwapchainKHR                                               vkDestroySwapchainKHR                                               = 0;
-    PFN_vkQueuePresentKHR                                                   vkQueuePresentKHR                                                   = 0;
     PFN_vkCreateSemaphore                                                   vkCreateSemaphore                                                   = 0;
-    PFN_vkCreateSwapchainKHR                                                vkCreateSwapchainKHR                                                = 0;
-    PFN_vkGetSwapchainImagesKHR                                             vkGetSwapchainImagesKHR                                             = 0;
     PFN_vkDestroySemaphore                                                  vkDestroySemaphore                                                  = 0;
     PFN_vkQueueWaitIdle                                                     vkQueueWaitIdle                                                     = 0;
     PFN_vkDeviceWaitIdle                                                    vkDeviceWaitIdle                                                    = 0;
-    PFN_vkAcquireNextImageKHR                                               vkAcquireNextImageKHR                                               = 0;
     PFN_vkFreeCommandBuffers                                                vkFreeCommandBuffers                                                = 0;
     PFN_vkDestroyCommandPool                                                vkDestroyCommandPool                                                = 0;
     PFN_vkCreateCommandPool                                                 vkCreateCommandPool                                                 = 0;
@@ -115,20 +108,6 @@ typedef struct VkFunctionTable
     PFN_vkCmdBeginDebugUtilsLabelEXT                                        vkCmdBeginDebugUtilsLabelEXT                                        = 0;
     PFN_vkCmdEndDebugUtilsLabelEXT                                          vkCmdEndDebugUtilsLabelEXT                                          = 0;
     PFN_vkWaitForFences                                                     vkWaitForFences                                                     = 0;
-    // ARM tensor and data graph extensions
-    PFN_vkCreateTensorARM                                     vkCreateTensorARM                                     = 0;
-    PFN_vkCreateTensorViewARM                                 vkCreateTensorViewARM                                 = 0;
-    PFN_vkGetTensorMemoryRequirementsARM                      vkGetTensorMemoryRequirementsARM                      = 0;
-    PFN_vkBindTensorMemoryARM                                 vkBindTensorMemoryARM                                 = 0;
-    PFN_vkCreateDataGraphPipelinesARM                         vkCreateDataGraphPipelinesARM                         = 0;
-    PFN_vkCreateDataGraphPipelineSessionARM                   vkCreateDataGraphPipelineSessionARM                   = 0;
-    PFN_vkCmdDispatchDataGraphARM                             vkCmdDispatchDataGraphARM                             = 0;
-    PFN_vkGetDataGraphPipelineSessionBindPointRequirementsARM vkGetDataGraphPipelineSessionBindPointRequirementsARM = 0;
-    PFN_vkGetDataGraphPipelineSessionMemoryRequirementsARM    vkGetDataGraphPipelineSessionMemoryRequirementsARM    = 0;
-    PFN_vkBindDataGraphPipelineSessionMemoryARM               vkBindDataGraphPipelineSessionMemoryARM               = 0;
-    PFN_vkDestroyDataGraphPipelineSessionARM                  vkDestroyDataGraphPipelineSessionARM                  = 0;
-    PFN_vkDestroyTensorARM                                    vkDestroyTensorARM                                    = 0;
-    PFN_vkDestroyTensorViewARM                                vkDestroyTensorViewARM                                = 0;
 } VkFunctionTable;
 
 /// @brief Initialize the Vulkan wrapper with the provided device context.

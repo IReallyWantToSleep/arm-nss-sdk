@@ -240,27 +240,6 @@ inline uint8_t ffxCountBitsSet(uint32_t val) noexcept
 #endif
 }
 
-/// @brief Get the optical flow texture size.
-///
-/// @param displaySize               The display size.
-/// @param opticalFlowBlockSize      The optical flow block size.
-///
-/// @return
-/// The optical flow texture size.
-///
-/// @ingroup Utils
-FFX_API FfxDimensions2D GetOpticalFlowTextureSizeFromBlockSize(const FfxDimensions2D& displaySize, const uint32_t opticalFlowBlockSize);
-
-/// @brief Get the optical flow block size.
-///
-/// @param gridSize               The optical flow grid size.
-///
-/// @return
-/// The optical flow block size.
-///
-/// @ingroup Utils
-FFX_API uint32_t GetOpticalFlowBlockSize(const FfxOpticalFlowGridSize gridSize);
-
 /// @brief Invert a 4x4 matrix.
 ///
 /// @param [in] m                The input matrix.

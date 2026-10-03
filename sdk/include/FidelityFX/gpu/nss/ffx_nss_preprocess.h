@@ -79,20 +79,14 @@ layout(location = NSS_BIND_RENDER_TARGET_NEAREST_DEPTH_COORD) out FfxFloat32x4 r
 #endif
 
 //-------------------------------------------------------------------------
-// Output: Preprocessed-tensor: uses native tensor if tensor ops supported,
-//         otherwise alias the same memory as a std430 SSBO buffer.
+// Output: Preprocessed model input stored in a std430 SSBO buffer.
 //-------------------------------------------------------------------------
 #if defined(NSS_BIND_PREPROCESS_INPUT_TENSOR)
-#if NSS_SUPPORT_TENSOR
-layout(set = 0, binding = NSS_BIND_PREPROCESS_INPUT_TENSOR) uniform tensorARM<tensor_t, 4> rw_preprocessed_tensor;
-#define _PreprocessTensor rw_preprocessed_tensor
-#else
 layout(set = 0, binding = NSS_BIND_PREPROCESS_INPUT_TENSOR, std430) buffer PreprocessInputTensorBuffer
 {
     int8_t4 data[];
 }
 rw_preprocessed_tensor_buffer;
-#endif
 #endif
 
 // ---------------------------------------------------------------------------
@@ -758,28 +752,7 @@ float4 EncodeNearestOffsetQuadUNormRG8(int32_t2 offset_00, int32_t2 offset_10, i
 // ---------------------------------------------------------------------------
 
 #if defined(NSS_BIND_PREPROCESS_INPUT_TENSOR)
-#if NSS_SUPPORT_TENSOR
-// Write all 12 int8 tensor channels in a single tensorWriteARM call.
-void WriteInputTensorPacked(int32_t2 coord, int8_t4 t_vec0, int8_t4 t_vec1, int8_t4 t_vec2)
-{
-    int8_t t0[12] = {t_vec0.x, t_vec0.y, t_vec0.z, t_vec0.w, t_vec1.x, t_vec1.y, t_vec1.z, t_vec1.w, t_vec2.x, t_vec2.y, t_vec2.z, t_vec2.w};
-    tensorWriteARM(_PreprocessTensor, uint[](0, coord.y, coord.x, 0), t0);
-}
-
-void ReadInputTensorPacked(int32_t2 coord, out int8_t4 t_vec0, out int8_t4 t_vec1, out int8_t4 t_vec2)
-{
-    int8_t raw_vec0[4];
-    int8_t raw_vec1[4];
-    int8_t raw_vec2[4];
-    tensorReadARM(_PreprocessTensor, uint[](0, uint(coord.y), uint(coord.x), 0), raw_vec0);
-    tensorReadARM(_PreprocessTensor, uint[](0, uint(coord.y), uint(coord.x), 4), raw_vec1);
-    tensorReadARM(_PreprocessTensor, uint[](0, uint(coord.y), uint(coord.x), 8), raw_vec2);
-    t_vec0 = int8_t4(raw_vec0[0], raw_vec0[1], raw_vec0[2], raw_vec0[3]);
-    t_vec1 = int8_t4(raw_vec1[0], raw_vec1[1], raw_vec1[2], raw_vec1[3]);
-    t_vec2 = int8_t4(raw_vec2[0], raw_vec2[1], raw_vec2[2], raw_vec2[3]);
-}
-#else
-// Tensor aliased as std430 SSBO — write via linear NHWC indexing.
+// Write the 12-channel model input through its linear NHWC buffer alias.
 void WriteInputTensorPacked(int32_t2 coord, int8_t4 t_vec0, int8_t4 t_vec1, int8_t4 t_vec2)
 {
     uint32_t base                                 = (uint32_t(coord.y) * uint32_t(PaddedDims().x) + uint32_t(coord.x)) * 3u;
@@ -795,7 +768,6 @@ void ReadInputTensorPacked(int32_t2 coord, out int8_t4 t_vec0, out int8_t4 t_vec
     t_vec1        = rw_preprocessed_tensor_buffer.data[base + 1u];
     t_vec2        = rw_preprocessed_tensor_buffer.data[base + 2u];
 }
-#endif
 
 // Network input layout (12 channels): history.rgb | colour.rgb | motion_detector | feedback.rgba | luma_deriv
 void WriteToTensor(int32_t2 coord, half3 history, half3 colour, half motion_detector, half4 feedback, half luma_derivative)

@@ -111,8 +111,6 @@ struct IReflectionData
     std::vector<ShaderResourceInfo> samplers;                  ///< Sampler resource reflection data representation (currently unused).
     std::vector<ShaderResourceInfo> rtAccelerationStructures;  ///< Acceleration structure resource reflection data representation.
     std::vector<ShaderResourceInfo> rtTextures;                ///< Render target resource reflection data representation.
-    std::vector<ShaderResourceInfo> srvTensors;                ///< SRV-based tensor resource reflection data representation.
-    std::vector<ShaderResourceInfo> uavTensors;                ///< SRV-based tensor resource reflection data representation.
 };
 
 /// A structure defining a shader permutation representation. Each permutation compiled

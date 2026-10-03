@@ -53,6 +53,11 @@ if (FFX_NSS OR FFX_ALL)
 
 	target_include_directories(ffx_nss_${FFX_PLATFORM_NAME} PUBLIC ${FFX_INCLUDE_PATH})
 	target_include_directories(ffx_nss_${FFX_PLATFORM_NAME} PUBLIC ${FFX_SHARED_PATH})
+	target_include_directories(ffx_nss_${FFX_PLATFORM_NAME} PRIVATE
+		"${FFX_SRC_BACKENDS_PATH}/vk/dp4a")
+	target_include_directories(ffx_nss_${FFX_PLATFORM_NAME} PRIVATE
+		"${FFX_INCLUDE_PATH}/vulkan-headers")
+	target_compile_definitions(ffx_nss_${FFX_PLATFORM_NAME} PRIVATE NSS_DP4A_BUILD)
 
 	set_source_files_properties(${SHADERS} PROPERTIES HEADER_FILE_ONLY TRUE)
 	set_target_properties(ffx_nss_${FFX_PLATFORM_NAME} PROPERTIES FOLDER Components)

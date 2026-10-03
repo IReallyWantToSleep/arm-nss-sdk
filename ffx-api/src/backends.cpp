@@ -47,7 +47,9 @@ ffxReturnCode_t CreateBackend(const ffxCreateContextDescHeader* desc, bool& back
                                              backendDesc->vkPhysicalDevice,
                                              backendDesc->vkDeviceProcAddr,
                                              backendDesc->vkInstance,
-                                             backendDesc->vkGetInstanceProcAddr};
+                                             backendDesc->vkGetInstanceProcAddr,
+                                             backendDesc->vkQueue,
+                                             backendDesc->queueFamilyIndex};
             const bool      wrapper_init  = InitVulkanWrapper(deviceContext);
             FFX_ASSERT(wrapper_init);
             FfxDevice device            = ffxGetDeviceVK(&deviceContext);

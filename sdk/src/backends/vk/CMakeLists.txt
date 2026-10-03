@@ -65,35 +65,9 @@ file(GLOB PRIVATE_SOURCE
 	"${FFX_SRC_BACKENDS_PATH}/shared/blob_accessors/"
     "${CMAKE_CURRENT_SOURCE_DIR}/*.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/dp4a/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/dp4a/*.cpp"
 )
-
-if (FFX_FI OR FFX_ALL)
-	#if(WIN32)
-		file(GLOB FRAME_INTERPOLATION_SWAPCHAIN_SRC
-			"${CMAKE_CURRENT_SOURCE_DIR}/FrameInterpolationSwapchain/*.h"
-			"${CMAKE_CURRENT_SOURCE_DIR}/FrameInterpolationSwapchain/*.cpp"
-		)
-		list(APPEND PRIVATE_SOURCE ${FRAME_INTERPOLATION_SWAPCHAIN_SRC})
-	#endif()
-endif()
-
-if (FFX_FI OR FFX_ALL)
-	set(FFX_FI_PRIVATE_SOURCE
-		"${FFX_SRC_BACKENDS_PATH}/shared/blob_accessors/ffx_frameinterpolation_shaderblobs.h"
-		"${FFX_SRC_BACKENDS_PATH}/shared/blob_accessors/ffx_frameinterpolation_shaderblobs.cpp")
-	list(APPEND PRIVATE_SOURCE ${FFX_FI_PRIVATE_SOURCE})
-
-	# Add shaders for Frame Interpolation
-
-	file(GLOB FFX_FI_PRIVATE_SHADERS
-		"${CMAKE_CURRENT_SOURCE_DIR}/shaders/frameinterpolation/*.glsl")
-	list(APPEND PRIVATE_SHADERS ${FFX_FI_PRIVATE_SHADERS})
-
-	file(GLOB FFX_FI_PUBLIC_SHADERS
-		"${FFX_GPU_PATH}/frameinterpolation/*.h"
-		"${FFX_GPU_PATH}/frameinterpolation/*.glsl")
-	list(APPEND PUBLIC_SHADERS ${FFX_FI_PUBLIC_SHADERS})
-endif()
 
 if (FFX_NSS OR FFX_ALL)
 	set(FFX_NSS_PRIVATE_SOURCE
@@ -111,27 +85,6 @@ if (FFX_NSS OR FFX_ALL)
 		"${FFX_GPU_PATH}/nss/*.h"
 		"${FFX_GPU_PATH}/nss/*.glsl")
 	list(APPEND PUBLIC_SHADERS ${FFX_NSS_PUBLIC_SHADERS})
-endif()
-
-if (FFX_OF OR FFX_ALL)
-	set(ARM_OF_PRIVATE_SOURCE
-		"${FFX_SRC_BACKENDS_PATH}/shared/blob_accessors/ffx_opticalflow_shaderblobs.h"
-		"${FFX_SRC_BACKENDS_PATH}/shared/blob_accessors/ffx_opticalflow_shaderblobs.cpp")
-	list(APPEND PRIVATE_SOURCE ${ARM_OF_PRIVATE_SOURCE})
-
-	# Add shaders for Arm Optical Flow
-
-	file(GLOB ARM_OF_PRIVATE_SHADERS
-		"${CMAKE_CURRENT_SOURCE_DIR}/shaders/opticalflow/*.glsl"
-		"${CMAKE_CURRENT_SOURCE_DIR}/shaders/opticalflow/*.comp"
-		"${CMAKE_CURRENT_SOURCE_DIR}/shaders/opticalflow/*.frag"
-		"${CMAKE_CURRENT_SOURCE_DIR}/shaders/opticalflow/*.vert")
-	list(APPEND PRIVATE_SHADERS ${ARM_OF_PRIVATE_SHADERS})
-
-	file(GLOB ARM_OF_PUBLIC_SHADERS
-		"${FFX_GPU_PATH}/opticalflow/*.h"
-		"${FFX_GPU_PATH}/opticalflow/*.glsl")
-	list(APPEND PUBLIC_SHADERS ${ARM_OF_PUBLIC_SHADERS})
 endif()
 
 file(GLOB_RECURSE PUBLIC_SOURCE
@@ -169,43 +122,35 @@ if(CMAKE_CONFIGURATION_TYPES)
   set(FFX_PASS_SHADER_OUTPUT_PATH
       "${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/ffx_shaders"
       CACHE PATH "" FORCE)
-  set(FFX_PASS_DATA_GRAPH_OUTPUT_PATH
-      "${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/ffx_graphs"
-      CACHE PATH "" FORCE)
 
-  # Pre-create real folders for all known configs at *configure* time (no genex here)
+  # Pre-create shader folders for all known configs at configure time.
   foreach(cfg ${CMAKE_CONFIGURATION_TYPES})
     file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/${cfg}/ffx_shaders")
-    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/${cfg}/ffx_graphs")
   endforeach()
 else()
   # Single-config generators (Ninja/Make — Android uses Ninja)
   set(FFX_PASS_SHADER_OUTPUT_PATH
       "${CMAKE_BINARY_DIR}/ffx_shaders"
       CACHE PATH "" FORCE)
-  set(FFX_PASS_DATA_GRAPH_OUTPUT_PATH
-      "${CMAKE_BINARY_DIR}/ffx_graphs"
-      CACHE PATH "" FORCE)
 
   file(MAKE_DIRECTORY "${FFX_PASS_SHADER_OUTPUT_PATH}")
-  file(MAKE_DIRECTORY "${FFX_PASS_DATA_GRAPH_OUTPUT_PATH}")
 endif()
 
 target_include_directories(ffx_backend_vk_${FFX_PLATFORM_NAME} PUBLIC ${FFX_INCLUDE_PATH})
 target_include_directories(ffx_backend_vk_${FFX_PLATFORM_NAME} PUBLIC ${FFX_LIB_PATH})
 target_include_directories(ffx_backend_vk_${FFX_PLATFORM_NAME} PUBLIC ${FFX_PASS_SHADER_OUTPUT_PATH})
-target_include_directories(ffx_backend_vk_${FFX_PLATFORM_NAME} PUBLIC ${FFX_PASS_DATA_GRAPH_OUTPUT_PATH})
 target_include_directories(ffx_backend_vk_${FFX_PLATFORM_NAME} PRIVATE ${FFX_COMPONENTS_PATH})
 target_include_directories(ffx_backend_vk_${FFX_PLATFORM_NAME} PRIVATE ${FFX_SHARED_PATH})
 target_include_directories(ffx_backend_vk_${FFX_PLATFORM_NAME} PRIVATE "${FFX_SRC_BACKENDS_PATH}/shared")
+target_include_directories(ffx_backend_vk_${FFX_PLATFORM_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/dp4a")
+target_compile_definitions(ffx_backend_vk_${FFX_PLATFORM_NAME} PRIVATE NSS_DP4A_BUILD)
+target_compile_features(ffx_backend_vk_${FFX_PLATFORM_NAME} PRIVATE cxx_std_20)
 target_include_directories(ffx_backend_vk_${FFX_PLATFORM_NAME} PRIVATE ${FFX_PASS_SHADER_OUTPUT_PATH})
-target_include_directories(ffx_backend_vk_${FFX_PLATFORM_NAME} PRIVATE ${FFX_PASS_DATA_GRAPH_OUTPUT_PATH})
 
 set_source_files_properties(${PRIVATE_SHADERS} PROPERTIES HEADER_FILE_ONLY TRUE)
 set_source_files_properties(${PUBLIC_SHADERS} PROPERTIES HEADER_FILE_ONLY TRUE)
 
 file(MAKE_DIRECTORY ${FFX_PASS_SHADER_OUTPUT_PATH})
-file(MAKE_DIRECTORY ${FFX_PASS_DATA_GRAPH_OUTPUT_PATH})
 
 if (FFX_AUTO_COMPILE_SHADERS)
     set(FFX_SC_DEPENDENT_TARGET ffx_backend_vk_${FFX_PLATFORM_NAME})
@@ -217,16 +162,6 @@ endif()
 
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.20.0")
 	cmake_policy(SET CMP0116 OLD)
-endif()
-
-if (FFX_FI OR FFX_ALL)
-	target_compile_definitions(ffx_backend_vk_${FFX_PLATFORM_NAME} PRIVATE FFX_FI)
-	include (CMakeShadersArmFrameinterpolation.txt)
-endif()
-
-if (FFX_OF OR FFX_ALL)
-	target_compile_definitions(ffx_backend_vk_${FFX_PLATFORM_NAME} PRIVATE FFX_OF)
-	include (CMakeShadersOpticalflow.txt)
 endif()
 
 if (FFX_NSS OR FFX_ALL)

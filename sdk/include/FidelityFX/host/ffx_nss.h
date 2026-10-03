@@ -84,7 +84,7 @@ typedef enum FfxNssPass
     FFX_NSS_PASS_DEPTH_SCATTER       = 0,  ///< A pass which performs depth scattering.
     FFX_NSS_PASS_DISOCCLUSION_MASK   = 1,  ///< A pass which computes low-quality disocclusion mask.
     FFX_NSS_PASS_PREPROCESS          = 2,  ///< A pass which performs preprocessing.
-    FFX_NSS_PASS_DATA_GRAPH          = 3,  ///< A pass which performs data graph.
+    FFX_NSS_PASS_RESERVED_3          = 3,  ///< Reserved to preserve pass identifiers.
     FFX_NSS_PASS_GENERATE_OFFSET_LUT = 4,  ///< A pass which builds the dynamic postprocess offset LUT.
     FFX_NSS_PASS_POSTPROCESS         = 5,  ///< A pass which performs postprocessing.
     FFX_NSS_PASS_DEBUG_VIEW          = 6,  ///< A pass which overlays debug views.
@@ -123,7 +123,7 @@ typedef enum FfxNssShaderQualityMode
 /// @ingroup ffxNss
 typedef enum FfxNssInitializationFlagBits
 {
-    FFX_NSS_CONTEXT_FLAG_QUANTIZED          = (1 << 0),  ///< Use a quantized data graph. Resources will be quantized to 8 bits.
+    FFX_NSS_CONTEXT_FLAG_QUANTIZED          = (1 << 0),  ///< Use 8-bit quantized NSS model resources.
     FFX_NSS_CONTEXT_FLAG_HIGH_DYNAMIC_RANGE = (1 << 1),  ///< A bit indicating if the input color data provided is using a high-dynamic range.
     FFX_NSS_CONTEXT_FLAG_DEPTH_INVERTED     = (1 << 2),  ///< A bit indicating that the input depth buffer data provided is inverted [1..0].
     FFX_NSS_CONTEXT_FLAG_DEPTH_INFINITE     = (1 << 3),  ///< A bit indicating that the input depth buffer data provided is using an infinite far plane.

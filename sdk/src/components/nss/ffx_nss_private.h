@@ -23,6 +23,7 @@
 
 #pragma once
 #include "FidelityFX/gpu/nss/ffx_nss_resources.h"
+#include "nss_dp4a.h"
 
 enum NssScalePresetMode
 {
@@ -57,8 +58,6 @@ typedef enum NssShaderPermutationOptions : uint32_t
     NSS_SHADER_PERMUTATION_POST_PROCESS_FRAGMENT = (1 << 9),
     // Bits 10-11: 2-bit shader quality mode field
     NSS_SHADER_PERMUTATION_QUALITY_MODE_MASK       = (NSS_SHADER_QUALITY_MODE_MASK << NSS_SHADER_PERMUTATION_QUALITY_MODE_SHIFT),
-    NSS_SHADER_PERMUTATION_COMPUTE_SUPPORT_TENSOR  = (1 << 12),
-    NSS_SHADER_PERMUTATION_FRAGMENT_SUPPORT_TENSOR = (1 << 13),
 } NssShaderPermutationOptions;
 
 /// Debug view display modes for the NSS debug view pass.
@@ -118,7 +117,7 @@ typedef struct NssConstants
     FfxFloat32   _DepthClipRequiredSepScale;
     FfxFloat32   _DepthClipPower;
 
-    FfxFloat32x2 _KpnScale;         ///< kpnDims / paddedDims (= 0.25 when KPN is at 1/4 of dataGraphSize)
+    FfxFloat32x2 _KpnScale;         ///< kpnDims / paddedDims (= 0.25 when KPN is at 1/4 of inferenceSize)
     FfxUInt32    _DebugViewMode;    ///< Debug view mode (see NssDebugViewMode). 0 = all tiles, 1-16 = single tile fullscreen.
     FfxFloat32   _NotHistoryReset;  ///< 1.0 if history is valid, 0.0 if history needs reset
 
@@ -144,10 +143,10 @@ typedef struct FfxNssContext_Private
     FfxPipelineState         pipelineNssDepthScatter;                          ///< The pipeline state for the NSS depth scatter pass.
     FfxPipelineState         pipelineNssDisocclusionMask;                      ///< The pipeline state for the NSS disocclusion mask pass.
     FfxPipelineState         pipelineNssPreprocess;                            ///< The pipeline state for the NSS preprocess pass.
-    FfxPipelineState         pipelineNssDataGraph;                             ///< The pipeline state for the NSS data graph pass.
     FfxPipelineState         pipelineNssGenerateOffsetLut;                     ///< The pipeline state for the NSS dynamic offset LUT generation pass.
     FfxPipelineState         pipelineNssPostprocess;                           ///< The pipeline state for the NSS postprocess pass.
     FfxPipelineState         pipelineNssDebugView;                             ///< The pipeline state for the NSS debug view pass.
+    NssDp4aContext*           dp4aContext;                                    ///< Portable NSS inference context.
     FfxConstantBuffer        constantBuffers[FFX_NSS_CONSTANTBUFFER_COUNT];    ///< Pointer to constant data in staging ring buffer and data size.
     FfxResourceInternal      srvResources[FFX_NSS_RESOURCE_IDENTIFIER_COUNT];  ///< SRV resource table.
     FfxResourceInternal      uavResources[FFX_NSS_RESOURCE_IDENTIFIER_COUNT];  ///< UAV resource table.
@@ -158,7 +157,7 @@ typedef struct FfxNssContext_Private
     uint32_t        pipelineFlags;
     FfxDimensions2D depthScatterSize;
     FfxDimensions2D processSize;
-    FfxDimensions2D dataGraphSize;
+    FfxDimensions2D inferenceSize;
     FfxDimensions2D kpnDimension;
     FfxDimensions2D offsetLutSize;
     FfxDimensions2D reducedFractionLrSize;

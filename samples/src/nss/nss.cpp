@@ -89,17 +89,8 @@ NSSSample::NSSSample()
 	// ========================================
 	set_api_version(VK_API_VERSION_1_4);
 
-	// ========================================
-	// NSS SDK Required Extensions
-	// https://docs.vulkan.org/refpages/latest/refpages/source/VK_ARM_data_graph.html
-	// ========================================
-	add_device_extension("VK_KHR_dynamic_rendering", true);               // Required by VK_KHR_maintenance5
-	add_device_extension("VK_KHR_maintenance5", true);                    // Required by VK_ARM_data_graph
-	add_device_extension("VK_KHR_deferred_host_operations", true);        // Required by VK_ARM_data_graph
-
-	// ARM ML extensions
-	add_device_extension("VK_ARM_data_graph", true);
-	add_device_extension("VK_ARM_tensors", true);
+	// NSS uses portable Vulkan compute features only. No Arm ML extension or
+	// emulation layer is required.
 }
 
 void NSSSample::request_gpu_features(vkb::core::PhysicalDeviceC &gpu)
@@ -111,19 +102,18 @@ void NSSSample::request_gpu_features(vkb::core::PhysicalDeviceC &gpu)
 	// NSS SDK Required GPU Features
 	// ========================================
 
-	// Int8 Support: NSS uses int8 for quantized model operations
+	// Int8 DP4A inference and 64-bit requantization.
 	REQUEST_REQUIRED_FEATURE(gpu, VkPhysicalDeviceVulkan12Features, shaderInt8);
+	if (!gpu.get_features().shaderInt64)
+	{
+		throw std::runtime_error("NSS DP4A requires shaderInt64");
+	}
+	gpu.get_mutable_requested_features().shaderInt64 = VK_TRUE;
+	REQUEST_REQUIRED_FEATURE(gpu, VkPhysicalDeviceShaderIntegerDotProductFeatures, shaderIntegerDotProduct);
 
 	// Synchronization2: NSS uses vkCmdPipelineBarrier2 for pipeline barriers
 	REQUEST_REQUIRED_FEATURE(gpu, VkPhysicalDeviceVulkan13Features, synchronization2);
 
-	// ========================================
-	// ARM Vendor Extensions (Android/ARM Mali GPUs)
-	// ========================================
-
-	REQUEST_OPTIONAL_FEATURE(gpu, VkPhysicalDeviceTensorFeaturesARM, shaderTensorAccess);
-	REQUEST_OPTIONAL_FEATURE(gpu, VkPhysicalDeviceTensorFeaturesARM, tensors);
-	REQUEST_OPTIONAL_FEATURE(gpu, VkPhysicalDeviceDataGraphFeaturesARM, dataGraph);
 }
 
 static void OnNSSMessage(uint32_t type, const char *message)
@@ -182,6 +172,9 @@ void NSSSample::initialize_nss_context(const VkExtent2D &low_res_extent, const V
 	backendDesc.vkInstance            = get_instance().get_handle();
 	backendDesc.vkDevice              = get_device().get_handle();
 	backendDesc.vkPhysicalDevice      = get_device().get_gpu().get_handle();
+	const auto &nss_queue = get_device().get_queue_by_flags(VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT, 0);
+	backendDesc.vkQueue               = nss_queue.get_handle();
+	backendDesc.queueFamilyIndex      = nss_queue.get_family_index();
 	backendDesc.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
 	backendDesc.vkDeviceProcAddr      = vkGetDeviceProcAddr;
 

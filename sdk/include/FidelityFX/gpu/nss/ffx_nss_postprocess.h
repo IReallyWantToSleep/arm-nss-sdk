@@ -187,41 +187,24 @@ half4 Tonemap4(half4 x)
 //-------------------------------------------------------------------------
 #if defined(NSS_BIND_KPN_TENSOR)
 
-// ---- KPN coefficients tensor (36-channel) ----
-// NSS v1: cannot use image alias (too many channels). Use native tensor ops or buffer alias (SSBO).
-#if !NSS_SUPPORT_TENSOR
-// Buffer alias path: tensor aliased as a std430 SSBO — read via linear NHWC indexing.
+// KPN coefficients are stored in a linear NHWC buffer alias.
 layout(set = 0, binding = NSS_BIND_KPN_TENSOR, std430) readonly buffer KpnCoeffBuffer
 {
     int8_t4 data[];
 }
 r_coefficients_kpn_buffer;
-#else
-// Native tensor path: read via tensorReadARM.
-layout(set = 0, binding = NSS_BIND_KPN_TENSOR) uniform readonly tensorARM<tensor_t, 4> r_coefficients_kpn_tensor;
-#endif
 
 // ---------------------------------------------------------------------------
-// KPN tensor read — NSS v1 uses a single 36-channel tensor at 1/4 of dataGraph resolution.
-// Buffer alias (SSBO) path when native tensor ops are unavailable; tensorReadARM otherwise.
+// KPN coefficients are read from the buffer alias in NHWC layout.
 // ---------------------------------------------------------------------------
 int8_t ReadKpnParamsInt8FromBase(int32_t kpn_texel_base_x, int32_t kpn_y, int32_t channel)
 {
-#if !NSS_SUPPORT_TENSOR
-    // Buffer alias path: tensor stored as SSBO in NHWC layout, int8_t4 per group of 4 channels.
-    // Linear index: (y * kpn_w + x) * (kKpnChannels / 4) + channel/4
     int32_t kpn_w      = KpnDims().x;
     int32_t ch_group   = channel >> 2;  // which int8_t4 group
     int32_t ch_within  = channel & 3;   // channel within the group
     int32_t linear_idx = (kpn_y * kpn_w + kpn_texel_base_x) * (kKpnChannels / 4) + ch_group;
     int8_t4 vec        = r_coefficients_kpn_buffer.data[linear_idx];
     return vec[ch_within];
-#else
-    // Native tensor path: read directly via tensorReadARM using [batch, y, x, channel] indexing.
-    int8_t q = int8_t(0);
-    tensorReadARM(r_coefficients_kpn_tensor, uint[](0, uint(kpn_y), uint(kpn_texel_base_x), uint(channel)), q);
-    return q;
-#endif
 }
 
 int8_t ReadKpnParamsInt8(int32_t2 kpn_tap, int32_t channel)
@@ -668,7 +651,7 @@ void FilterColour(int32_t2 output_px, out half4 m1, out half4 m2, out half4 cent
 #elif (NSS_FILTER_MODE == 0) || (NSS_FILTER_MODE == 1)
 void FilterColour(int32_t2 output_px, out half4 m1, out half4 m2, out half4 center_sample)
 {
-    // NSS v1: KPN tensor is at 1/4 of dataGraph resolution; map input-space tap coords to KPN space.
+    // NSS v1: KPN coefficients are at 1/4 of inference resolution; map input-space tap coords to KPN space.
     //-------------------------------------------------------------------------
     // Spatial KPN filtering:
     // - pick tap pattern from LUT (tile-dependent)

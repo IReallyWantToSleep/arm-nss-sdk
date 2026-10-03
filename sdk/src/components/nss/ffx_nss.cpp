@@ -35,6 +35,7 @@
 #include "ffx_object_management.h"
 
 #include "FidelityFX/host/ffx_util.h"
+#include "FidelityFX/host/backends/vk/ffx_vk.h"
 
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wunused-variable"
@@ -114,22 +115,6 @@ static const ResourceBinding rtTextureBindingTable[] = {
     {FFX_NSS_RESOURCE_IDENTIFIER_NEAREST_DEPTH_COORD, "rw_nearest_depth_coord_out"},
     {FFX_NSS_RESOURCE_IDENTIFIER_DEBUG_VIEWS, "rw_debug_views"},
     {FFX_NSS_RESOURCE_IDENTIFIER_DISOCCLUSION_MASK_LQ, "rw_disocclusion_mask_lq"},
-};
-
-static const ResourceBinding srvTensorBindingTable[] = {
-    {FFX_NSS_RESOURCE_IDENTIFIER_KPN_TENSOR, "r_coefficients_kpn_tensor"},
-    {FFX_NSS_RESOURCE_IDENTIFIER_FEEDBACK_TENSOR, "r_temporal_feedback_tensor"},
-    // Data graph resources
-    {FFX_NSS_RESOURCE_IDENTIFIER_PREPROCESS_INPUT_TENSOR, "Resource_0_input"},
-};
-
-static const ResourceBinding uavTensorBindingTable[] = {
-    // Shader resources - taken from shader reflection information
-    {FFX_NSS_RESOURCE_IDENTIFIER_PREPROCESS_INPUT_TENSOR, "rw_preprocessed_tensor"},
-    // Data graph resources - taken from data graph reflection information.
-    // nss VGF: Resource_1_output = KPN coefficients (36ch, 1/4 res), Resource_2_output = temporal feedback (4ch)
-    {FFX_NSS_RESOURCE_IDENTIFIER_KPN_TENSOR, "Resource_1_output"},
-    {FFX_NSS_RESOURCE_IDENTIFIER_FEEDBACK_TENSOR, "Resource_2_output"},
 };
 
 #define FFX_LENGTH(x, y) (sqrt((x) * (x) + (y) * (y)))
@@ -253,16 +238,6 @@ static FfxErrorCode patchResourceBindings(FfxPipelineState* inoutPipeline)
     errorCode = patchResourceIdentifier(inoutPipeline->rtBindings, rtTextureBindingTable, FFX_COUNTOF(rtTextureBindingTable), inoutPipeline->rtCount);
     FFX_RETURN_ON_ERROR(errorCode == FFX_OK, errorCode);
 
-    // SRV tensors
-    errorCode =
-        patchResourceIdentifier(inoutPipeline->srvTensorBindings, srvTensorBindingTable, FFX_COUNTOF(srvTensorBindingTable), inoutPipeline->srvTensorCount);
-    FFX_RETURN_ON_ERROR(errorCode == FFX_OK, errorCode);
-
-    // UAV tensors
-    errorCode =
-        patchResourceIdentifier(inoutPipeline->uavTensorBindings, uavTensorBindingTable, FFX_COUNTOF(uavTensorBindingTable), inoutPipeline->uavTensorCount);
-    FFX_RETURN_ON_ERROR(errorCode == FFX_OK, errorCode);
-
     return FFX_OK;
 }
 
@@ -275,9 +250,7 @@ static uint32_t getPipelinePermutationFlags(FfxNssContext_Private* context)
     FFX_VALIDATE(context->contextDescription.backendInterface.fpGetDeviceCapabilities(&context->contextDescription.backendInterface, &capabilities));
     const uint32_t contextFlags          = context->contextDescription.flags;
     const bool     fp16Supported         = capabilities.fp16Supported;
-    const bool     computeSupportTensor  = capabilities.computeSupportTensor;
-    const bool     fragmentSupportTensor = capabilities.fragmentSupportTensor;
-
+    // The portable backend always uses the storage-buffer shader contract.
     uint32_t flags = 0;
     flags |= (contextFlags & FFX_NSS_CONTEXT_FLAG_QUANTIZED) ? NSS_SHADER_PERMUTATION_QUANTIZED : 0;
     flags |= (contextFlags & FFX_NSS_CONTEXT_FLAG_DEPTH_INVERTED) ? NSS_SHADER_PERMUTATION_REVERSE_Z : 0;
@@ -285,9 +258,6 @@ static uint32_t getPipelinePermutationFlags(FfxNssContext_Private* context)
     flags |= (contextFlags & FFX_NSS_CONTEXT_FLAG_MANAGE_HISTORY) ? NSS_SHADER_PERMUTATION_MANAGE_HISTORY : 0;
     flags |= (contextFlags & FFX_NSS_CONTEXT_FLAG_PRE_PROCESS_FRAGMENT) ? NSS_SHADER_PERMUTATION_PRE_PROCESS_FRAGMENT : 0;
     flags |= (contextFlags & FFX_NSS_CONTEXT_FLAG_POST_PROCESS_FRAGMENT) ? NSS_SHADER_PERMUTATION_POST_PROCESS_FRAGMENT : 0;
-    flags |= (computeSupportTensor) ? NSS_SHADER_PERMUTATION_COMPUTE_SUPPORT_TENSOR : 0;
-    flags |= (fragmentSupportTensor) ? NSS_SHADER_PERMUTATION_FRAGMENT_SUPPORT_TENSOR : 0;
-
     const bool require16bit = (contextFlags & FFX_NSS_CONTEXT_FLAG_ALLOW_16BIT) != 0;
     if (require16bit)
     {
@@ -332,64 +302,7 @@ static uint32_t offsetLutGroupsPerTile(uint32_t pipelineFlags)
     return (qualityModeValue == FFX_NSS_SHADER_QUALITY_MODE_QUALITY) ? 3u : 1u;
 }
 
-static FfxErrorCode buildDataGraphTensorInfo(const FfxInternalResourceDescription* internalSurfaceDesc,
-                                             uint32_t                              internalSurfaceCount,
-                                             FfxDataGraphTensorInfo*               outTensorInfo,
-                                             uint32_t                              maxTensorInfoCount,
-                                             uint32_t*                             outTensorInfoCount)
-{
-    FFX_ASSERT(internalSurfaceDesc != nullptr);
-    FFX_ASSERT(outTensorInfo != nullptr);
-    FFX_ASSERT(outTensorInfoCount != nullptr);
-
-    uint32_t tensorInfoCount = 0;
-
-    const auto appendTensorInfo = [&](const ResourceBinding& binding, bool bufferAliased) -> FfxErrorCode {
-        for (uint32_t infoIndex = 0; infoIndex < tensorInfoCount; ++infoIndex)
-        {
-            if (0 == strcmp(outTensorInfo[infoIndex].resourceName, binding.name))
-            {
-                outTensorInfo[infoIndex].bufferAliased = bufferAliased;
-                return FFX_OK;
-            }
-        }
-
-        FFX_RETURN_ON_ERROR(tensorInfoCount < maxTensorInfoCount, FFX_ERROR_OUT_OF_RANGE);
-        outTensorInfo[tensorInfoCount++] = {binding.name, bufferAliased};
-        return FFX_OK;
-    };
-
-    for (uint32_t surfaceIndex = 0; surfaceIndex < internalSurfaceCount; ++surfaceIndex)
-    {
-        const FfxInternalResourceDescription& surfaceDesc = internalSurfaceDesc[surfaceIndex];
-        if (surfaceDesc.type != FFX_RESOURCE_TYPE_TENSOR)
-        {
-            continue;
-        }
-
-        const bool bufferAliased = (surfaceDesc.flags & FFX_RESOURCE_FLAGS_BUFFER_ALIASED) == FFX_RESOURCE_FLAGS_BUFFER_ALIASED;
-        for (uint32_t bindingIndex = 0; bindingIndex < FFX_COUNTOF(srvTensorBindingTable); ++bindingIndex)
-        {
-            if (srvTensorBindingTable[bindingIndex].index == surfaceDesc.id)
-            {
-                FFX_VALIDATE(appendTensorInfo(srvTensorBindingTable[bindingIndex], bufferAliased));
-            }
-        }
-
-        for (uint32_t bindingIndex = 0; bindingIndex < FFX_COUNTOF(uavTensorBindingTable); ++bindingIndex)
-        {
-            if (uavTensorBindingTable[bindingIndex].index == surfaceDesc.id)
-            {
-                FFX_VALIDATE(appendTensorInfo(uavTensorBindingTable[bindingIndex], bufferAliased));
-            }
-        }
-    }
-
-    *outTensorInfoCount = tensorInfoCount;
-    return FFX_OK;
-}
-
-static FfxErrorCode createPipelineStates(FfxNssContext_Private* context, const FfxDataGraphTensorInfo* dataGraphTensorInfo, uint32_t dataGraphTensorInfoCount)
+static FfxErrorCode createPipelineStates(FfxNssContext_Private* context)
 {
     FFX_ASSERT(context);
 
@@ -468,25 +381,13 @@ static FfxErrorCode createPipelineStates(FfxNssContext_Private* context, const F
     FFX_VALIDATE(CreatePipeline(FFX_NSS_PASS_POSTPROCESS, "NSS-Postprocess", &context->pipelineNssPostprocess, postProcessUseFragment));
     FFX_VALIDATE(CreatePipeline(FFX_NSS_PASS_DEBUG_VIEW, "NSS-DebugView", &context->pipelineNssDebugView, postProcessUseFragment));
 
-    // DATA GRAPH
-    ffxSafeReleasePipeline(&context->contextDescription.backendInterface, &context->pipelineNssDataGraph, context->effectContextId);
-    strncpy(pipelineDescription.name, "NSS-Graph", FFX_RESOURCE_NAME_SIZE - 1);
-    pipelineDescription.name[FFX_RESOURCE_NAME_SIZE - 1] = '\0';
-    pipelineDescription.dataGraphTensorInfo              = dataGraphTensorInfo;
-    pipelineDescription.dataGraphTensorInfoCount         = dataGraphTensorInfoCount;
-    FFX_VALIDATE(context->contextDescription.backendInterface.fpCreateDataGraphPipeline(&context->contextDescription.backendInterface,
-                                                                                        FFX_EFFECT_NSS,
-                                                                                        FFX_NSS_PASS_DATA_GRAPH,
-                                                                                        context->pipelineFlags,
-                                                                                        &pipelineDescription,
-                                                                                        context->effectContextId,
-                                                                                        context->dataGraphSize.width,
-                                                                                        context->dataGraphSize.height,
-                                                                                        &context->pipelineNssDataGraph));
-    patchResourceBindings(&context->pipelineNssDataGraph);
-    // END DATA GRAPH
-
     return FFX_OK;
+}
+
+static void nssDp4aLogThunk(int level, const char* message, void* userData)
+{
+    const auto* context = reinterpret_cast<const FfxNssContext_Private*>(userData);
+    printMessage(context, level >= 2 ? FFX_MESSAGE_TYPE_ERROR : FFX_MESSAGE_TYPE_WARNING, message);
 }
 
 static FfxErrorCode createResourceFromDescription(FfxNssContext_Private* context, const FfxInternalResourceDescription* resDesc)
@@ -496,12 +397,10 @@ static FfxErrorCode createResourceFromDescription(FfxNssContext_Private* context
                                                         resDesc->format,
                                                         resDesc->width,
                                                         resDesc->height,
-                                                        (resourceType == FFX_RESOURCE_TYPE_TENSOR) ? resDesc->channel : 1,
+                                                        1,
                                                         resDesc->mipCount,
                                                         resDesc->flags,
-                                                        resDesc->usage,
-                                                        resDesc->batchSize,
-                                                        resDesc->shapeSize};
+                                                        resDesc->usage};
     const FfxResourceStates initialState = (resDesc->usage == FFX_RESOURCE_USAGE_READ_ONLY) ? FFX_RESOURCE_STATE_COMPUTE_READ : FFX_RESOURCE_STATE_GENERIC_UAV;
     const FfxCreateResourceDescription createResourceDescription = {
         FFX_HEAP_TYPE_DEFAULT, resourceDescription, initialState, resDesc->name, resDesc->id, resDesc->initData};
@@ -512,8 +411,8 @@ static FfxErrorCode createResourceFromDescription(FfxNssContext_Private* context
 static void nssDebugCheckCreate(FfxNssContext_Private* context)
 {
     FFX_ASSERT(context);
-    FFX_ASSERT_MESSAGE(context->dataGraphSize.width % FFX_NSS_RESOURCE_ALIGNMENT == 0, "DataGraph width is not aligned!");
-    FFX_ASSERT_MESSAGE(context->dataGraphSize.height % FFX_NSS_RESOURCE_ALIGNMENT == 0, "DataGraph height is not aligned!");
+    FFX_ASSERT_MESSAGE(context->inferenceSize.width % FFX_NSS_RESOURCE_ALIGNMENT == 0, "inference width is not aligned!");
+    FFX_ASSERT_MESSAGE(context->inferenceSize.height % FFX_NSS_RESOURCE_ALIGNMENT == 0, "inference height is not aligned!");
 
     const auto getQualityModeString = [](const uint32_t mode) -> const char* {
         switch (static_cast<FfxNssShaderQualityMode>(mode))
@@ -553,14 +452,14 @@ static void nssDebugCheckCreate(FfxNssContext_Private* context)
     const uint32_t lutGroupsPerTile = offsetLutGroupsPerTile(pipelineFlags);
     snprintf(message,
              MESSAGE_BUFFER_SIZE,
-             "\nDepth scatter size = (%u x %u), render size = (%u x %u),  data graph size = (%u x %u), dynamic lut size = ( %u * %u x %u), upscale size = (%u "
+             "\nDepth scatter size = (%u x %u), render size = (%u x %u),  inference size = (%u x %u), dynamic lut size = ( %u * %u x %u), upscale size = (%u "
              "x %u).\n",
              context->depthScatterSize.width,
              context->depthScatterSize.height,
              desc.renderSize.width,
              desc.renderSize.height,
-             context->dataGraphSize.width,
-             context->dataGraphSize.height,
+             context->inferenceSize.width,
+             context->inferenceSize.height,
              lutGroupsPerTile,
              context->reducedFractionHrSize.width,
              context->reducedFractionHrSize.height,
@@ -573,7 +472,7 @@ static void nssDebugCheckCreate(FfxNssContext_Private* context)
     FFX_ASSERT(qualityMode == static_cast<uint32_t>(context->contextDescription.qualityMode));
     snprintf(message,
              MESSAGE_BUFFER_SIZE,
-             "\nPipeline flags = 0x%lx, quality mode = %u (%s), scale preset mode = %u (%s=%u/%u x %u/%u), compute tensor ops = %d, fragment tensor ops = %d\n",
+             "\nPipeline flags = 0x%lx, quality mode = %u (%s), scale preset mode = %u (%s=%u/%u x %u/%u)\n",
              pipelineFlags,
              static_cast<uint32_t>(qualityMode),
              getQualityModeString(qualityMode),
@@ -582,9 +481,7 @@ static void nssDebugCheckCreate(FfxNssContext_Private* context)
              context->reducedFractionHrSize.width,
              context->reducedFractionLrSize.width,
              context->reducedFractionHrSize.height,
-             context->reducedFractionLrSize.height,
-             int((pipelineFlags & NSS_SHADER_PERMUTATION_COMPUTE_SUPPORT_TENSOR) != 0),
-             int((pipelineFlags & NSS_SHADER_PERMUTATION_FRAGMENT_SUPPORT_TENSOR) != 0));
+             context->reducedFractionLrSize.height);
     printMessage(context, FFX_MESSAGE_TYPE_WARNING, message);
 
     const char* preprocessStage  = ((pipelineFlags & NSS_SHADER_PERMUTATION_PRE_PROCESS_FRAGMENT) != 0) ? "fragment" : "compute";
@@ -593,7 +490,7 @@ static void nssDebugCheckCreate(FfxNssContext_Private* context)
     snprintf(disocclusion_mask_str, sizeof(disocclusion_mask_str), "-[disocclusion mask(%s)]-", preprocessStage);
     snprintf(message,
              MESSAGE_BUFFER_SIZE,
-             "\nActive Passes: [depth scatter(compute)]%s[preprocess(%s)]-[data graph]%s[postprocess(%s)]-[debug view(%s)]\n",
+             "\nActive Passes: [depth scatter(compute)]%s[preprocess(%s)]-[inference]%s[postprocess(%s)]-[debug view(%s)]\n",
              context->useDisocclusionMaskPass ? disocclusion_mask_str : "-",
              preprocessStage,
              context->useDynamicOffsetLut ? "-[dynamic lut(compute)]-" : "-",
@@ -655,16 +552,6 @@ static FfxErrorCode nssCreate(FfxNssContext_Private* context, const FfxNssContex
     FfxDeviceCapabilities capabilities;
     FFX_VALIDATE(context->contextDescription.backendInterface.fpGetDeviceCapabilities(&context->contextDescription.backendInterface, &capabilities));
 
-    const bool neuralGraphicsSupported = capabilities.tensorSupported && capabilities.dataGraphSupported;
-    if (!neuralGraphicsSupported)
-    {
-        printMessage(context,
-                     FFX_MESSAGE_TYPE_ERROR,
-                     "NSS requires device with support for tensors and data graphs. "
-                     "Please check device capabilities.");
-        return FFX_ERROR_NULL_DEVICE;
-    }
-
     // set defaults
     context->firstExecution     = true;
     context->resourceFrameIndex = 0;
@@ -680,23 +567,12 @@ static FfxErrorCode nssCreate(FfxNssContext_Private* context, const FfxNssContex
     // We only need the disocclusion pass for mid/low quality
     context->useDisocclusionMaskPass = !isQualityMode;
 
-    FfxSurfaceFormat tensorFormatSingleChannel = ((contextDescription->flags & FFX_NSS_CONTEXT_FLAG_QUANTIZED) == FFX_NSS_CONTEXT_FLAG_QUANTIZED)
-                                                     ? FFX_SURFACE_FORMAT_R8_SINT
-                                                     : FFX_SURFACE_FORMAT_R32_FLOAT;
-
     const bool                 preProcessUseFragment            = (context->pipelineFlags & NSS_SHADER_PERMUTATION_PRE_PROCESS_FRAGMENT) != 0;
     const bool                 postProcessUseFragment           = (context->pipelineFlags & NSS_SHADER_PERMUTATION_POST_PROCESS_FRAGMENT) != 0;
     const FfxResourceUsage     preProcessOutputImageUsage       = preProcessUseFragment ? FFX_RESOURCE_USAGE_RENDERTARGET : FFX_RESOURCE_USAGE_UAV;
     const FfxResourceUsage     disocclusionMaskOutputImageUsage = preProcessUseFragment ? FFX_RESOURCE_USAGE_RENDERTARGET : FFX_RESOURCE_USAGE_UAV;
     const FfxResourceUsage     postProcessOutputImageUsage      = postProcessUseFragment ? FFX_RESOURCE_USAGE_RENDERTARGET : FFX_RESOURCE_USAGE_UAV;
-    const bool                 preprocessSupportTensor  = preProcessUseFragment ? capabilities.fragmentSupportTensor : capabilities.computeSupportTensor;
-    const bool                 postprocessSupportTensor = postProcessUseFragment ? capabilities.fragmentSupportTensor : capabilities.computeSupportTensor;
-    constexpr FfxResourceUsage tensorUsage              = FFX_RESOURCE_USAGE_UAV;
-
-    // When preprocess doesn't support native tensor ops, the shader access the tensor via a buffer alias (std430 SSBO) or image alias.
-    const FfxResourceFlags preprocessTensorFlags = preprocessSupportTensor ? FFX_RESOURCE_FLAGS_NONE : FFX_RESOURCE_FLAGS_BUFFER_ALIASED;
-    const FfxResourceFlags kpnTensorFlags        = postprocessSupportTensor ? FFX_RESOURCE_FLAGS_NONE : FFX_RESOURCE_FLAGS_BUFFER_ALIASED;
-    const FfxResourceFlags tensorResourceFlag    = FFX_RESOURCE_FLAGS_IMAGE_ALIASED;
+    constexpr FfxResourceUsage tensorUsage = FFX_RESOURCE_USAGE_UAV;
 
     // Note the dimensions for each shader qualit mode should match the macros in ffx_nss_common_glsl.h
     // KPN coefficients tensor channel count depends on quality mode
@@ -707,8 +583,8 @@ static FfxErrorCode nssCreate(FfxNssContext_Private* context, const FfxNssContex
     {
         context->depthScatterSize.width  = renderSize.width / 2;
         context->depthScatterSize.height = renderSize.height / 2;
-        context->dataGraphSize.width     = FFX_ALIGN_UP(renderSize.width, FFX_NSS_RESOURCE_ALIGNMENT);
-        context->dataGraphSize.height    = FFX_ALIGN_UP(renderSize.height, FFX_NSS_RESOURCE_ALIGNMENT);
+        context->inferenceSize.width     = FFX_ALIGN_UP(renderSize.width, FFX_NSS_RESOURCE_ALIGNMENT);
+        context->inferenceSize.height    = FFX_ALIGN_UP(renderSize.height, FFX_NSS_RESOURCE_ALIGNMENT);
         // QUALITY (NSS_USE_SPARSE_2X2_FILTER=0) → 36 channels (full 6×6 kernel)
         KpnTensorChannel = 36u;
         // QUALITY (NSS_PACKED_NEAREST_OFFSET_QUAD=0): single r8 unorm offset code.
@@ -718,17 +594,17 @@ static FfxErrorCode nssCreate(FfxNssContext_Private* context, const FfxNssContex
     {
         context->depthScatterSize.width  = renderSize.width / 4;
         context->depthScatterSize.height = renderSize.height / 4;
-        context->dataGraphSize.width     = FFX_ALIGN_UP(renderSize.width / 2, FFX_NSS_RESOURCE_ALIGNMENT);
-        context->dataGraphSize.height    = FFX_ALIGN_UP(renderSize.height / 2, FFX_NSS_RESOURCE_ALIGNMENT);
+        context->inferenceSize.width     = FFX_ALIGN_UP(renderSize.width / 2, FFX_NSS_RESOURCE_ALIGNMENT);
+        context->inferenceSize.height    = FFX_ALIGN_UP(renderSize.height / 2, FFX_NSS_RESOURCE_ALIGNMENT);
         // BALANCE/PERFORMANCE (NSS_USE_SPARSE_2X2_FILTER=1) → 16 channels (sparse 2×2 kernel)
         KpnTensorChannel = 16u;
         // BALANCE/PERFORMANCE (NSS_PACKED_NEAREST_OFFSET_QUAD=1): four nibble offsets packed into rg8.
         depthOffsetFormat = FFX_SURFACE_FORMAT_R8G8_UNORM;
     }
-    // KPN tensor is at 1/4 of the padded input (dataGraph) resolution.
+    // KPN coefficients use one quarter of the padded inference resolution.
     // TODO: we'd better query this from shape inference result.
-    context->kpnDimension.width  = context->dataGraphSize.width / 4;
-    context->kpnDimension.height = context->dataGraphSize.height / 4;
+    context->kpnDimension.width  = context->inferenceSize.width / 4;
+    context->kpnDimension.height = context->inferenceSize.height / 4;
 
     if (context->useDynamicOffsetLut)
     {
@@ -765,25 +641,22 @@ static FfxErrorCode nssCreate(FfxNssContext_Private* context, const FfxNssContex
     const FfxInternalResourceDescription PersistentInternalSurfaceDesc[] = {
         {FFX_NSS_RESOURCE_IDENTIFIER_PREPROCESS_INPUT_TENSOR,
          "NSS_PreprocessInputTensor",
-         FFX_RESOURCE_TYPE_TENSOR,
+         FFX_RESOURCE_TYPE_BUFFER,
          tensorUsage,
-         tensorFormatSingleChannel,
-         context->dataGraphSize.width,
-         context->dataGraphSize.height,
+         FFX_SURFACE_FORMAT_UNKNOWN,
+         context->inferenceSize.width * context->inferenceSize.height * inputTensorChannel,
          1,
-         preprocessTensorFlags,
-         {FFX_RESOURCE_INIT_DATA_TYPE_UNINITIALIZED},
          1,
-         inputTensorChannel,
-         4},
+         FFX_RESOURCE_FLAGS_NONE,
+          {FFX_RESOURCE_INIT_DATA_TYPE_UNINITIALIZED}},
 
         {FFX_NSS_RESOURCE_IDENTIFIER_LUMA_DERIV_1,
          "NSS_LumaDeriv_1",
          FFX_RESOURCE_TYPE_TEXTURE2D,
          preProcessOutputImageUsage,
          FFX_SURFACE_FORMAT_R8G8B8A8_SNORM,
-         context->dataGraphSize.width,
-         context->dataGraphSize.height,
+         context->inferenceSize.width,
+         context->inferenceSize.height,
          1,
          FFX_RESOURCE_FLAGS_NONE,
          {FFX_RESOURCE_INIT_DATA_TYPE_UNINITIALIZED}},
@@ -793,8 +666,8 @@ static FfxErrorCode nssCreate(FfxNssContext_Private* context, const FfxNssContex
          FFX_RESOURCE_TYPE_TEXTURE2D,
          preProcessOutputImageUsage,
          FFX_SURFACE_FORMAT_R8G8B8A8_SNORM,
-         context->dataGraphSize.width,
-         context->dataGraphSize.height,
+         context->inferenceSize.width,
+         context->inferenceSize.height,
          1,
          FFX_RESOURCE_FLAGS_NONE,
          {FFX_RESOURCE_INIT_DATA_TYPE_UNINITIALIZED}},
@@ -804,39 +677,33 @@ static FfxErrorCode nssCreate(FfxNssContext_Private* context, const FfxNssContex
          FFX_RESOURCE_TYPE_TEXTURE2D,
          preProcessOutputImageUsage,
          depthOffsetFormat,
-         context->dataGraphSize.width,
-         context->dataGraphSize.height,
+         context->inferenceSize.width,
+         context->inferenceSize.height,
          1,
          FFX_RESOURCE_FLAGS_NONE,
          {FFX_RESOURCE_INIT_DATA_TYPE_UNINITIALIZED}},
 
         {FFX_NSS_RESOURCE_IDENTIFIER_FEEDBACK_TENSOR,
          "NSS_FeedbackTensor",
-         FFX_RESOURCE_TYPE_TENSOR,
+         FFX_RESOURCE_TYPE_TEXTURE2D,
          tensorUsage,
-         tensorFormatSingleChannel,
-         context->dataGraphSize.width,
-         context->dataGraphSize.height,
+         FFX_SURFACE_FORMAT_R8G8B8A8_SNORM,
+         context->inferenceSize.width,
+         context->inferenceSize.height,
          1,
-         tensorResourceFlag,
-         {FFX_RESOURCE_INIT_DATA_TYPE_UNINITIALIZED},
-         1,
-         feedbackTensorChannel,
-         4},
+         FFX_RESOURCE_FLAGS_BUFFER_ALIASED,
+         {FFX_RESOURCE_INIT_DATA_TYPE_UNINITIALIZED}},
 
         {FFX_NSS_RESOURCE_IDENTIFIER_KPN_TENSOR,
          "NSS_KpnCoefficientsTensor",
-         FFX_RESOURCE_TYPE_TENSOR,
+         FFX_RESOURCE_TYPE_BUFFER,
          tensorUsage,
-         tensorFormatSingleChannel,
-         context->kpnDimension.width,
-         context->kpnDimension.height,
+         FFX_SURFACE_FORMAT_UNKNOWN,
+         context->kpnDimension.width * context->kpnDimension.height * KpnTensorChannel,
          1,
-         kpnTensorFlags,
-         {FFX_RESOURCE_INIT_DATA_TYPE_UNINITIALIZED},
          1,
-         KpnTensorChannel,
-         4},
+         FFX_RESOURCE_FLAGS_NONE,
+          {FFX_RESOURCE_INIT_DATA_TYPE_UNINITIALIZED}},
         {FFX_NSS_RESOURCE_IDENTIFIER_INPUT_DEPTH_TM1,
          "NSS_reconstructed_prev_depth",
          FFX_RESOURCE_TYPE_TEXTURE2D,
@@ -951,15 +818,42 @@ static FfxErrorCode nssCreate(FfxNssContext_Private* context, const FfxNssContex
         }
     }
 
-    constexpr uint32_t     MAX_DATA_GRAPH_TENSOR_INFO                      = FFX_COUNTOF(srvTensorBindingTable) + FFX_COUNTOF(uavTensorBindingTable);
-    FfxDataGraphTensorInfo dataGraphTensorInfo[MAX_DATA_GRAPH_TENSOR_INFO] = {};
-    uint32_t               dataGraphTensorInfoCount                        = 0;
-    FFX_VALIDATE(
-        buildDataGraphTensorInfo(internalSurfaceDesc, internalSurfaceCount, dataGraphTensorInfo, MAX_DATA_GRAPH_TENSOR_INFO, &dataGraphTensorInfoCount));
+    // Replace the Arm inference with the portable DP4A backend. The
+    // preprocessing and postprocessing resources remain FFX-managed.
+    {
+        const auto* deviceContext = reinterpret_cast<const VkDeviceContext*>(context->contextDescription.backendInterface.device);
+        if (!deviceContext || !deviceContext->vkDevice || !deviceContext->vkPhysicalDevice ||
+            !deviceContext->vkInstance || !deviceContext->vkQueue)
+        {
+            printMessage(context, FFX_MESSAGE_TYPE_ERROR, "Portable NSS DP4A requires a Vulkan queue in the backend descriptor.");
+            return FFX_ERROR_INVALID_POINTER;
+        }
+
+        NssDp4aCreateInfo createInfo{};
+        createInfo.instance           = reinterpret_cast<uint64_t>(deviceContext->vkInstance);
+        createInfo.physicalDevice     = reinterpret_cast<uint64_t>(deviceContext->vkPhysicalDevice);
+        createInfo.device             = reinterpret_cast<uint64_t>(deviceContext->vkDevice);
+        createInfo.queue              = reinterpret_cast<uint64_t>(deviceContext->vkQueue);
+        createInfo.queueFamilyIndex   = deviceContext->queueFamilyIndex;
+        createInfo.apiVersion         = VK_API_VERSION_1_3;
+        createInfo.quality            = isQualityMode ? NSS_DP4A_QUALITY_HIGH : NSS_DP4A_QUALITY_MID_LOW;
+        createInfo.width              = context->inferenceSize.width;
+        createInfo.height             = context->inferenceSize.height;
+        createInfo.vkGetInstanceProcAddr = reinterpret_cast<void*>(deviceContext->vkGetInstanceProcAddr);
+        createInfo.logCallback        = nssDp4aLogThunk;
+        createInfo.logUserData        = context;
+
+        const NssDp4aResult result = nssDp4aCreateContext(&createInfo, &context->dp4aContext);
+        if (result != NSS_DP4A_OK)
+        {
+            printMessage(context, FFX_MESSAGE_TYPE_ERROR, nssDp4aGetResultString(result));
+            return FFX_ERROR_BACKEND_API_ERROR;
+        }
+    }
 
     // avoid compiling pipelines on first render
     {
-        errorCode = createPipelineStates(context, dataGraphTensorInfo, dataGraphTensorInfoCount);
+        errorCode = createPipelineStates(context);
         FFX_RETURN_ON_ERROR(errorCode == FFX_OK, errorCode);
     }
     return FFX_OK;
@@ -975,7 +869,11 @@ static FfxErrorCode nssRelease(FfxNssContext_Private* context)
         ffxSafeReleasePipeline(&context->contextDescription.backendInterface, &context->pipelineNssDisocclusionMask, context->effectContextId);
     }
     ffxSafeReleasePipeline(&context->contextDescription.backendInterface, &context->pipelineNssPreprocess, context->effectContextId);
-    ffxSafeReleasePipeline(&context->contextDescription.backendInterface, &context->pipelineNssDataGraph, context->effectContextId);
+    if (context->dp4aContext)
+    {
+        nssDp4aDestroyContext(context->dp4aContext);
+        context->dp4aContext = nullptr;
+    }
     if (context->useDynamicOffsetLut)
     {
         ffxSafeReleasePipeline(&context->contextDescription.backendInterface, &context->pipelineNssGenerateOffsetLut, context->effectContextId);
@@ -1135,10 +1033,10 @@ static void setupConstantBuffer(FfxNssContext_Private* context, const FfxNssDisp
     constants._InvOutputDims[0] = 1.f / static_cast<float>(params->upscaleSize.width);
     constants._InvOutputDims[1] = 1.f / static_cast<float>(params->upscaleSize.height);
 
-    constants._InputTensorSize[0]    = context->dataGraphSize.width;
-    constants._InputTensorSize[1]    = context->dataGraphSize.height;
-    constants._InputTensorSizeRcp[0] = 1.0f / static_cast<float>(context->dataGraphSize.width);
-    constants._InputTensorSizeRcp[1] = 1.0f / static_cast<float>(context->dataGraphSize.height);
+    constants._InputTensorSize[0]    = context->inferenceSize.width;
+    constants._InputTensorSize[1]    = context->inferenceSize.height;
+    constants._InputTensorSizeRcp[0] = 1.0f / static_cast<float>(context->inferenceSize.width);
+    constants._InputTensorSizeRcp[1] = 1.0f / static_cast<float>(context->inferenceSize.height);
 
     // JitterOffset in pixels/uv.
     // On history reset, mirror current jitter into tm1 to avoid a mismatched first temporal phase.
@@ -1171,8 +1069,8 @@ static void setupConstantBuffer(FfxNssContext_Private* context, const FfxNssDisp
     constants._MotionVectorScale[0] = params->motionVectorScale.x;
     constants._MotionVectorScale[1] = params->motionVectorScale.y;
 
-    constants._PaddingScale[0] = constants._InputDims[0] / static_cast<float>(context->dataGraphSize.width);
-    constants._PaddingScale[1] = constants._InputDims[1] / static_cast<float>(context->dataGraphSize.height);
+    constants._PaddingScale[0] = constants._InputDims[0] / static_cast<float>(context->inferenceSize.width);
+    constants._PaddingScale[1] = constants._InputDims[1] / static_cast<float>(context->inferenceSize.height);
 
     constants._DepthTm1Size[0]    = context->depthScatterSize.width;
     constants._DepthTm1Size[1]    = context->depthScatterSize.height;
@@ -1185,9 +1083,9 @@ static void setupConstantBuffer(FfxNssContext_Private* context, const FfxNssDisp
     constants._DepthClipRequiredSepScale = ComputeDepthClipRequiredSepScale(constants, params);
     constants._DepthClipPower            = ComputeDepthClipPower(params);
 
-    // KPN scale for QUALITY mode tap-selection: kpnDims / paddedDims (= dataGraphSize)
-    constants._KpnScale[0] = (float)context->kpnDimension.width / (float)context->dataGraphSize.width;
-    constants._KpnScale[1] = (float)context->kpnDimension.height / (float)context->dataGraphSize.height;
+    // KPN scale for QUALITY mode tap-selection: kpnDims / paddedDims (= inferenceSize)
+    constants._KpnScale[0] = (float)context->kpnDimension.width / (float)context->inferenceSize.width;
+    constants._KpnScale[1] = (float)context->kpnDimension.height / (float)context->inferenceSize.height;
 
     constants._DebugViewMode =
         std::clamp(params->debugViewMode, static_cast<uint32_t>(NSS_DEBUG_VIEW_MODE_ALL), static_cast<uint32_t>(NSS_DEBUG_VIEW_MODE_TENSOR_WARP_FEEDBACK));
@@ -1291,32 +1189,6 @@ static void scheduleDispatch(FfxNssContext_Private*           context,
         dispatchJob.computeJobDescriptor.uavBuffers[index].resource = currentResource;
     }
 
-    for (uint32_t currentTensorIndex = 0; currentTensorIndex < pipeline->srvTensorCount; ++currentTensorIndex)
-    {
-        const uint32_t            currentResourceId                              = pipeline->srvTensorBindings[currentTensorIndex].resourceIdentifier;
-        const FfxResourceInternal currentResource                                = context->srvResources[currentResourceId];
-        dispatchJob.computeJobDescriptor.srvTensors[currentTensorIndex].resource = currentResource;
-#ifdef FFX_DEBUG
-        strncpy(dispatchJob.computeJobDescriptor.srvTensors[currentTensorIndex].name,
-                pipeline->srvTensorBindings[currentTensorIndex].name,
-                FFX_RESOURCE_NAME_SIZE - 1);
-        dispatchJob.computeJobDescriptor.srvTensors[currentTensorIndex].name[FFX_RESOURCE_NAME_SIZE - 1] = '\0';
-#endif
-    }
-
-    for (uint32_t currentTensorIndex = 0; currentTensorIndex < pipeline->uavTensorCount; ++currentTensorIndex)
-    {
-        const uint32_t            currentResourceId                              = pipeline->uavTensorBindings[currentTensorIndex].resourceIdentifier;
-        const FfxResourceInternal currentResource                                = context->uavResources[currentResourceId];
-        dispatchJob.computeJobDescriptor.uavTensors[currentTensorIndex].resource = currentResource;
-#ifdef FFX_DEBUG
-        strncpy(dispatchJob.computeJobDescriptor.uavTensors[currentTensorIndex].name,
-                pipeline->uavTensorBindings[currentTensorIndex].name,
-                FFX_RESOURCE_NAME_SIZE - 1);
-        dispatchJob.computeJobDescriptor.uavTensors[currentTensorIndex].name[FFX_RESOURCE_NAME_SIZE - 1] = '\0';
-#endif
-    }
-
     dispatchJob.computeJobDescriptor.dimensions[0] = dispatchX;
     dispatchJob.computeJobDescriptor.dimensions[1] = dispatchY;
     dispatchJob.computeJobDescriptor.dimensions[2] = 1;
@@ -1393,20 +1265,6 @@ static void scheduleFragment(FfxNssContext_Private*           context,
         fragmentJob.fragmentJobDescriptor.rtTextures[currentRenderTargetIndex].resource = currentResource;
     }
 
-    for (uint32_t currentTensorIndex = 0; currentTensorIndex < pipeline->srvTensorCount; ++currentTensorIndex)
-    {
-        const uint32_t            currentResourceId                               = pipeline->srvTensorBindings[currentTensorIndex].resourceIdentifier;
-        const FfxResourceInternal currentResource                                 = context->srvResources[currentResourceId];
-        fragmentJob.fragmentJobDescriptor.srvTensors[currentTensorIndex].resource = currentResource;
-    }
-
-    for (uint32_t currentTensorIndex = 0; currentTensorIndex < pipeline->uavTensorCount; ++currentTensorIndex)
-    {
-        const uint32_t            currentResourceId                               = pipeline->uavTensorBindings[currentTensorIndex].resourceIdentifier;
-        const FfxResourceInternal currentResource                                 = context->uavResources[currentResourceId];
-        fragmentJob.fragmentJobDescriptor.uavTensors[currentTensorIndex].resource = currentResource;
-    }
-
     fragmentJob.fragmentJobDescriptor.viewport[0] = width;
     fragmentJob.fragmentJobDescriptor.viewport[1] = height;
     fragmentJob.fragmentJobDescriptor.pipeline    = *pipeline;
@@ -1426,46 +1284,25 @@ static void scheduleFragment(FfxNssContext_Private*           context,
     FFX_ASSERT(context->contextDescription.backendInterface.fpScheduleGpuJob(&context->contextDescription.backendInterface, &fragmentJob) == FFX_OK);
 }
 
-static void scheduleDataGraph(FfxNssContext_Private* context, const FfxNssDispatchDescription* params, FfxPipelineState* pipeline, const char* debugName)
+static void scheduleDp4aInference(FfxNssContext_Private* context, const FfxNssDispatchDescription* params, const char* debugName)
 {
-    FfxGpuJobDescription dataGraphJob = {FFX_GPU_JOB_DATA_GRAPH};
+    FfxGpuJobDescription dp4aJob = {FFX_GPU_JOB_NSS_DP4A};
     if (debugName != nullptr)
     {
 #ifdef FFX_DEBUG
-        strncpy(dataGraphJob.jobLabel, debugName, FFX_RESOURCE_NAME_SIZE - 1);
-        dataGraphJob.jobLabel[FFX_RESOURCE_NAME_SIZE - 1] = '\0';
+        strncpy(dp4aJob.jobLabel, debugName, FFX_RESOURCE_NAME_SIZE - 1);
+        dp4aJob.jobLabel[FFX_RESOURCE_NAME_SIZE - 1] = '\0';
 #endif
     }
 
-    for (uint32_t currentTensorIndex = 0; currentTensorIndex < pipeline->srvTensorCount; ++currentTensorIndex)
-    {
-        const uint32_t            currentResourceId                                  = pipeline->srvTensorBindings[currentTensorIndex].resourceIdentifier;
-        const FfxResourceInternal currentResource                                    = context->srvResources[currentResourceId];
-        dataGraphJob.dataGraphJobDescription.srvTensors[currentTensorIndex].resource = currentResource;
-#ifdef FFX_DEBUG
-        strncpy(dataGraphJob.dataGraphJobDescription.srvTensors[currentTensorIndex].name,
-                pipeline->srvTensorBindings[currentTensorIndex].name,
-                FFX_RESOURCE_NAME_SIZE - 1);
-        dataGraphJob.dataGraphJobDescription.srvTensors[currentTensorIndex].name[FFX_RESOURCE_NAME_SIZE - 1] = '\0';
-#endif
-    }
+    dp4aJob.nssDp4aJobDescription.context         = context->dp4aContext;
+    dp4aJob.nssDp4aJobDescription.input           = context->uavResources[FFX_NSS_RESOURCE_IDENTIFIER_PREPROCESS_INPUT_TENSOR];
+    dp4aJob.nssDp4aJobDescription.outputKpn       = context->uavResources[FFX_NSS_RESOURCE_IDENTIFIER_KPN_TENSOR];
+    dp4aJob.nssDp4aJobDescription.outputTemporal  = context->uavResources[FFX_NSS_RESOURCE_IDENTIFIER_FEEDBACK_TENSOR];
+    dp4aJob.nssDp4aJobDescription.width            = context->inferenceSize.width;
+    dp4aJob.nssDp4aJobDescription.height           = context->inferenceSize.height;
 
-    for (uint32_t currentTensorIndex = 0; currentTensorIndex < pipeline->uavTensorCount; ++currentTensorIndex)
-    {
-        const uint32_t            currentResourceId                                  = pipeline->uavTensorBindings[currentTensorIndex].resourceIdentifier;
-        const FfxResourceInternal currentResource                                    = context->uavResources[currentResourceId];
-        dataGraphJob.dataGraphJobDescription.uavTensors[currentTensorIndex].resource = currentResource;
-#ifdef FFX_DEBUG
-        strncpy(dataGraphJob.dataGraphJobDescription.uavTensors[currentTensorIndex].name,
-                pipeline->uavTensorBindings[currentTensorIndex].name,
-                FFX_RESOURCE_NAME_SIZE - 1);
-        dataGraphJob.dataGraphJobDescription.uavTensors[currentTensorIndex].name[FFX_RESOURCE_NAME_SIZE - 1] = '\0';
-#endif
-    }
-
-    dataGraphJob.dataGraphJobDescription.pipeline = *pipeline;
-
-    FFX_ASSERT(context->contextDescription.backendInterface.fpScheduleGpuJob(&context->contextDescription.backendInterface, &dataGraphJob) == FFX_OK);
+    FFX_ASSERT(context->contextDescription.backendInterface.fpScheduleGpuJob(&context->contextDescription.backendInterface, &dp4aJob) == FFX_OK);
 }
 
 static FfxErrorCode nssDispatch(FfxNssContext_Private* context, const FfxNssDispatchDescription* params)
@@ -1587,16 +1424,16 @@ static FfxErrorCode nssDispatch(FfxNssContext_Private* context, const FfxNssDisp
         // Current-frame LumaDeriv as an SRV alias (debug view reads the value pre-process wrote this frame).
         context->srvResources[FFX_NSS_RESOURCE_IDENTIFIER_LUMA_DERIV] = context->srvResources[lumaDerivUavResourceIndex];
 
-        // Output: data graph input tensor
+        // Output: inference input tensor
         // This is already setup in nssCreate(), nothing to do here.
 
         // Output: Depth offset, consumed by post-process stage
         // This is already setup in nssCreate(), nothing to do here.
     }
 
-    // Setup the resources for data graph stage
+    // Setup the resources for inference stage
     {
-        // Input: data graph input tensor, outputted by pre-process stage.
+        // Input: inference input tensor, outputted by pre-process stage.
         // This is already setup in nssCreate(), nothing to do here.
 
         // Output: Feedback tensor, consumed by next frame.
@@ -1608,10 +1445,10 @@ static FfxErrorCode nssDispatch(FfxNssContext_Private* context, const FfxNssDisp
 
     // Setup the resources for post-process stage
     {
-        // Input: KPN coefficients tensor (KPN_TENSOR), outputted by data graph stage
+        // Input: KPN coefficients tensor (KPN_TENSOR), outputted by inference stage
         // This is already setup in nssCreate(), nothing to do here.
 
-        // Input: Temporal feedback = current frame's feedback output by data graph.
+        // Input: Temporal feedback = current frame's feedback output by inference.
         // This is already setup in nssCreate(), nothing to do here.
 
         // Input: Offset LUT is baked in shader code for exact x2, or generated into OFFSET_LUT for general ratios.
@@ -1679,16 +1516,16 @@ static FfxErrorCode nssDispatch(FfxNssContext_Private* context, const FfxNssDisp
 
     if (preProcessUseFragment)
     {
-        scheduleFragment(context, params, &context->pipelineNssPreprocess, context->dataGraphSize.width, context->dataGraphSize.height, "Preprocess");
+        scheduleFragment(context, params, &context->pipelineNssPreprocess, context->inferenceSize.width, context->inferenceSize.height, "Preprocess");
     }
     else
     {
-        const int32_t dispatchSrcX = FFX_DIVIDE_ROUNDING_UP(context->dataGraphSize.width, FFX_NSS_THREAD_GROUP_WIDTH);
-        const int32_t dispatchSrcY = FFX_DIVIDE_ROUNDING_UP(context->dataGraphSize.height, FFX_NSS_THREAD_GROUP_HEIGHT);
+        const int32_t dispatchSrcX = FFX_DIVIDE_ROUNDING_UP(context->inferenceSize.width, FFX_NSS_THREAD_GROUP_WIDTH);
+        const int32_t dispatchSrcY = FFX_DIVIDE_ROUNDING_UP(context->inferenceSize.height, FFX_NSS_THREAD_GROUP_HEIGHT);
         scheduleDispatch(context, params, &context->pipelineNssPreprocess, dispatchSrcX, dispatchSrcY, "Preprocess");
     }
 
-    scheduleDataGraph(context, params, &context->pipelineNssDataGraph, "DataGraph");
+    scheduleDp4aInference(context, params, "NSS-DP4A");
 
     if (context->useDynamicOffsetLut)
     {

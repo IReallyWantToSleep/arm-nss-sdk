@@ -80,11 +80,6 @@ static bool LoadVulkanFunctions(const VkDeviceContext& vkDeviceContext, VkFuncti
         success &= loader.getInstanceProc(tb.vkGetPhysicalDeviceFeatures2, "vkGetPhysicalDeviceFeatures2");
         success &= loader.getInstanceProc(tb.vkGetPhysicalDeviceProperties2, "vkGetPhysicalDeviceProperties2");
         success &= loader.getInstanceProc(tb.vkGetPhysicalDeviceQueueFamilyProperties, "vkGetPhysicalDeviceQueueFamilyProperties");
-        success &= loader.getInstanceProc(tb.vkGetPhysicalDeviceSurfaceSupportKHR, "vkGetPhysicalDeviceSurfaceSupportKHR");
-
-        // Optional ML extensions for Vulkan support
-        loader.getInstanceProc(tb.vkGetPhysicalDeviceQueueFamilyDataGraphEngineOperationPropertiesARM,
-                               "vkGetPhysicalDeviceQueueFamilyDataGraphEngineOperationPropertiesARM");
     }
 
     // vulkan device level functions
@@ -161,14 +156,7 @@ static bool LoadVulkanFunctions(const VkDeviceContext& vkDeviceContext, VkFuncti
         success &= loader.getDeviceProc(tb.vkDestroySemaphore, "vkDestroySemaphore");
         success &= loader.getDeviceProc(tb.vkGetSemaphoreCounterValue, "vkGetSemaphoreCounterValue");
 
-        // Swapchain functions
-        success &= loader.getDeviceProc(tb.vkCreateSwapchainKHR, "vkCreateSwapchainKHR");
-        success &= loader.getDeviceProc(tb.vkDestroySwapchainKHR, "vkDestroySwapchainKHR");
-        success &= loader.getDeviceProc(tb.vkGetSwapchainImagesKHR, "vkGetSwapchainImagesKHR");
-        success &= loader.getDeviceProc(tb.vkAcquireNextImageKHR, "vkAcquireNextImageKHR");
-
         // Queue functions
-        success &= loader.getDeviceProc(tb.vkQueuePresentKHR, "vkQueuePresentKHR");
         success &= loader.getDeviceProc(tb.vkQueueWaitIdle, "vkQueueWaitIdle");
         success &= loader.getDeviceProc(tb.vkQueueSubmit, "vkQueueSubmit");
         success &= loader.getDeviceProc(tb.vkDeviceWaitIdle, "vkDeviceWaitIdle");
@@ -200,20 +188,6 @@ static bool LoadVulkanFunctions(const VkDeviceContext& vkDeviceContext, VkFuncti
         loader.getDeviceProc(tb.vkCmdBeginDebugUtilsLabelEXT, "vkCmdBeginDebugUtilsLabelEXT");
         loader.getDeviceProc(tb.vkCmdEndDebugUtilsLabelEXT, "vkCmdEndDebugUtilsLabelEXT");
 
-        // Optional ML extensions for Vulkan support
-        loader.getDeviceProc(tb.vkCreateTensorARM, "vkCreateTensorARM");
-        loader.getDeviceProc(tb.vkCreateTensorViewARM, "vkCreateTensorViewARM");
-        loader.getDeviceProc(tb.vkGetTensorMemoryRequirementsARM, "vkGetTensorMemoryRequirementsARM");
-        loader.getDeviceProc(tb.vkBindTensorMemoryARM, "vkBindTensorMemoryARM");
-        loader.getDeviceProc(tb.vkCreateDataGraphPipelinesARM, "vkCreateDataGraphPipelinesARM");
-        loader.getDeviceProc(tb.vkCreateDataGraphPipelineSessionARM, "vkCreateDataGraphPipelineSessionARM");
-        loader.getDeviceProc(tb.vkCmdDispatchDataGraphARM, "vkCmdDispatchDataGraphARM");
-        loader.getDeviceProc(tb.vkGetDataGraphPipelineSessionBindPointRequirementsARM, "vkGetDataGraphPipelineSessionBindPointRequirementsARM");
-        loader.getDeviceProc(tb.vkGetDataGraphPipelineSessionMemoryRequirementsARM, "vkGetDataGraphPipelineSessionMemoryRequirementsARM");
-        loader.getDeviceProc(tb.vkBindDataGraphPipelineSessionMemoryARM, "vkBindDataGraphPipelineSessionMemoryARM");
-        loader.getDeviceProc(tb.vkDestroyDataGraphPipelineSessionARM, "vkDestroyDataGraphPipelineSessionARM");
-        loader.getDeviceProc(tb.vkDestroyTensorARM, "vkDestroyTensorARM");
-        loader.getDeviceProc(tb.vkDestroyTensorViewARM, "vkDestroyTensorViewARM");
     }
 
     tb.initialized = success;

@@ -337,7 +337,7 @@ bool GLSLCompiler::ExtractReflectionData(Permutation& permutation)
     permutation.reflectionData = std::shared_ptr<IReflectionData>(glslReflectionData);
 
 #if USE_SPIRV_REFLECT
-    // Use SPIRV-Reflect for native type reflection and SPIRV-Cross for tensors
+    // Use SPIRV-Reflect for native resource type reflection.
 
     SpvReflectShaderModule reflectShaderModule;
 
@@ -428,26 +428,8 @@ bool GLSLCompiler::ExtractReflectionData(Permutation& permutation)
 
     spvReflectDestroyShaderModule(&reflectShaderModule);
 
-    // For tensors, we have to use SPIRV-Cross as we have no support for tensors in SPIRV-Reflect.
-    spirv_cross::CompilerGLSL    glsl((uint32_t*)glslShaderBinary->BufferPointer(), glslShaderBinary->BufferSize() / 4);
-    spirv_cross::ShaderResources resources = glsl.get_shader_resources();
-    for (const auto& resource : resources.tensors)
-    {
-        unsigned           set          = glsl.get_decoration(resource.id, spv::DecorationDescriptorSet);
-        unsigned           binding      = glsl.get_decoration(resource.id, spv::DecorationBinding);
-        ShaderResourceInfo resourceInfo = {resource.name, binding, 1, set};
-
-        if (glsl.has_decoration(resource.id, spv::DecorationNonWritable))
-        {
-            glslReflectionData->srvTensors.push_back(resourceInfo);
-        }
-        else
-        {
-            glslReflectionData->uavTensors.push_back(resourceInfo);
-        }
-    }
 #else  // #if USE_SPIRV_REFLECT
-    // Use SPIRV-Cross for all reflection (not just tensors)
+    // Use SPIRV-Cross for all shader reflection.
     spirv_cross::CompilerGLSL glsl((uint32_t*)glslShaderBinary->BufferPointer(), glslShaderBinary->BufferSize() / 4);
 
     // Resources
@@ -522,21 +504,6 @@ bool GLSLCompiler::ExtractReflectionData(Permutation& permutation)
         glslReflectionData->rtTextures.push_back(resourceInfo);
     }
 
-    for (const auto& resource : resources.tensors)
-    {
-        unsigned           set          = glsl.get_decoration(resource.id, spv::DecorationDescriptorSet);
-        unsigned           binding      = glsl.get_decoration(resource.id, spv::DecorationBinding);
-        ShaderResourceInfo resourceInfo = {resource.name, binding, 1, set};
-
-        if (glsl.has_decoration(resource.id, spv::DecorationNonWritable))
-        {
-            glslReflectionData->srvTensors.push_back(resourceInfo);
-        }
-        else
-        {
-            glslReflectionData->uavTensors.push_back(resourceInfo);
-        }
-    }
 #endif
     return true;
 }
@@ -619,11 +586,6 @@ void GLSLCompiler::WriteBinaryHeaderReflectionData(FILE* fp, const Permutation& 
     // RT Texture
     WriteResourceInfo(fp, permutation.name, glslReflectionData->rtTextures, "TextureRT");
 
-    // SRV Tensor
-    WriteResourceInfo(fp, permutation.name, glslReflectionData->srvTensors, "TensorSRV");
-
-    // UAV Tensor
-    WriteResourceInfo(fp, permutation.name, glslReflectionData->uavTensors, "TensorUAV");
 }
 
 void GLSLCompiler::WritePermutationHeaderReflectionStructMembers(FILE* fp)
@@ -677,17 +639,6 @@ void GLSLCompiler::WritePermutationHeaderReflectionStructMembers(FILE* fp)
     fprintf(fp, "    const uint32_t* rtTextureCounts;\n");
     fprintf(fp, "    const uint32_t* rtTextureSpaces;\n");
     fprintf(fp, "\n");
-    fprintf(fp, "    const uint32_t  numSRVTensors;\n");
-    fprintf(fp, "    const char**    srvTensorNames;\n");
-    fprintf(fp, "    const uint32_t* srvTensorBindings;\n");
-    fprintf(fp, "    const uint32_t* srvTensorCounts;\n");
-    fprintf(fp, "    const uint32_t* srvTensorSpaces;\n");
-    fprintf(fp, "\n");
-    fprintf(fp, "    const uint32_t  numUAVTensors;\n");
-    fprintf(fp, "    const char**    uavTensorNames;\n");
-    fprintf(fp, "    const uint32_t* uavTensorBindings;\n");
-    fprintf(fp, "    const uint32_t* uavTensorCounts;\n");
-    fprintf(fp, "    const uint32_t* uavTensorSpaces;\n");
 }
 
 void GLSLCompiler::WritePermutationHeaderReflectionData(FILE* fp, const Permutation& permutation)
@@ -723,6 +674,4 @@ void GLSLCompiler::WritePermutationHeaderReflectionData(FILE* fp, const Permutat
     WriteResourceInfo(fp, glslReflectionData->samplers.size(), permutation.name, "Sampler");
     WriteResourceInfo(fp, glslReflectionData->rtAccelerationStructures.size(), permutation.name, "RTAccelerationStructure");
     WriteResourceInfo(fp, glslReflectionData->rtTextures.size(), permutation.name, "TextureRT");
-    WriteResourceInfo(fp, glslReflectionData->srvTensors.size(), permutation.name, "TensorSRV");
-    WriteResourceInfo(fp, glslReflectionData->uavTensors.size(), permutation.name, "TensorUAV");
 }

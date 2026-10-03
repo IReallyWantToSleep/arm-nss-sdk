@@ -4,10 +4,6 @@
 #version 460
 #extension GL_EXT_samplerless_texture_functions : require
 #extension GL_GOOGLE_include_directive : require
-#if NSS_SUPPORT_TENSOR
-#extension GL_ARM_tensors : require
-#endif
-
 #if FFX_HALF
 #extension GL_EXT_shader_8bit_storage : require
 #extension GL_EXT_shader_16bit_storage : require

@@ -84,13 +84,6 @@ file(GLOB private_ffx_api
 	${CMAKE_CURRENT_SOURCE_DIR}/src/validation.h
 	)
 
-if (FFX_FI OR FFX_ALL)
-	set(private_ffx_api_framegeneration
-		${CMAKE_CURRENT_SOURCE_DIR}/src/ffx_provider_framegeneration.h
-		${CMAKE_CURRENT_SOURCE_DIR}/src/ffx_provider_framegeneration.cpp)
-	list(APPEND private_ffx_api ${private_ffx_api_framegeneration})
-endif()
-
 if(FFX_NSS OR FFX_ALL)
 	set(private_ffx_api_nss
 		${CMAKE_CURRENT_SOURCE_DIR}/src/ffx_provider_nss.h
@@ -106,12 +99,6 @@ if (FFX_GRAPHICS_API STREQUAL vk)
 	message(WARNING "Setting FFX_BACKEND_VK")
 	add_compile_definitions(FFXDLL_VERSION_API=VK)
 	set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS FFX_BACKEND_VK)
-
-	if (FFX_FI OR FFX_ALL)
-		file(GLOB private_ffx_api_backend_vk
-			${CMAKE_CURRENT_SOURCE_DIR}/src/vk/*.h
-			${CMAKE_CURRENT_SOURCE_DIR}/src/vk/*.cpp)
-	endif()
 
 	file(GLOB public_ffx_api_backend_vk
 		${CMAKE_CURRENT_SOURCE_DIR}/include/ffx_api/vk/*.h
@@ -171,19 +158,9 @@ if(FFX_BUILD_AS_DLL AND FFX_GRAPHICS_API STREQUAL "vk" AND (CMAKE_SYSTEM_NAME ST
 		"LINKER:--exclude-libs,libSPIRV-Tools-reduce.a")
 endif()
 
-if(FFX_FI OR FFX_ALL)
-	target_compile_definitions(${SDK_LIB_NAME} PRIVATE FFX_FI)
-    target_link_libraries(${SDK_LIB_NAME} PRIVATE ffx_frameinterpolation_${FFX_PLATFORM_NAME})
-endif()
-
 if(FFX_NSS OR FFX_ALL)
 	target_compile_definitions(${SDK_LIB_NAME} PRIVATE FFX_NSS)
     target_link_libraries(${SDK_LIB_NAME} PRIVATE ffx_nss_${FFX_PLATFORM_NAME})
-endif()
-
-if(FFX_OF OR FFX_ALL)
-	target_compile_definitions(${SDK_LIB_NAME} PRIVATE FFX_OF)
-	target_link_libraries(${SDK_LIB_NAME} PRIVATE ffx_opticalflow_${FFX_PLATFORM_NAME})
 endif()
 
 if (FFX_GRAPHICS_API STREQUAL vk)

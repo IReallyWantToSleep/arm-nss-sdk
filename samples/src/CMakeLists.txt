@@ -27,6 +27,9 @@ set(TOTAL_SAMPLE_ID_LIST)
 
 # Add all sample subdirectories directly (no category folders)
 foreach (SUB_DIR ${SUB_DIRS})
+    if (SUB_DIR STREQUAL "nfru")
+        continue()
+    endif()
     add_subdirectory(${SUB_DIR})
     list(APPEND TOTAL_SAMPLE_ID_LIST ${SUB_DIR})
 endforeach ()
@@ -34,7 +37,6 @@ endforeach ()
 # Order of the sample ids
 set(ORDER_LIST
     "nss"
-    "nfru"
     )
 
 # Orders the sample ids by the order list above

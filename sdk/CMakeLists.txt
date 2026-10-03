@@ -98,14 +98,11 @@ endif()
 # Setup common variables
 if(CMAKE_HOST_WIN32)
 	set(FFX_SC_EXECUTABLE ${CMAKE_CURRENT_SOURCE_DIR}/tools/binary_store/FidelityFX_SC.exe)
-	# we need to use the glslangValidator that supports ML extensions for Vulkan
+	# Vulkan GLSL compiler used by the shader build.
 	set(FFX_GLSLANG_EXE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/tools/binary_store/glslangValidator.exe)
-	set(VGF_PARSER_EXECUTABLE ${CMAKE_CURRENT_SOURCE_DIR}/tools/binary_store/Model_Parser.exe)
 else()
 	set(FFX_SC_EXECUTABLE ${CMAKE_CURRENT_SOURCE_DIR}/tools/binary_store/FidelityFX_SC)
-	# we need to use the glslangValidator that supports ML extensions for Vulkan
 	set(FFX_GLSLANG_EXE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/tools/binary_store/glslangValidator)
-	set(VGF_PARSER_EXECUTABLE ${CMAKE_CURRENT_SOURCE_DIR}/tools/binary_store/Model_Parser)
 endif()
 
 set(FFX_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -151,27 +148,16 @@ if(NOT FFX_FSR3_AS_LIBRARY)
 endif()
 
 # Components
-#add_subdirectory(${FFX_COMPONENTS_PATH}/opticalflow)
 
 if(FFX_NSS OR FFX_ALL)
 	message(STATUS "Component FFX_NSS=ON")
 	add_subdirectory(${FFX_COMPONENTS_PATH}/nss)
 endif()
 
-if(FFX_FI OR FFX_ALL)
-	message(STATUS "Component FFX_FI=ON")
-	add_subdirectory(${FFX_COMPONENTS_PATH}/frameinterpolation)
-endif()
-
-if (FFX_OF OR FFX_ALL)
-	message(STATUS "Component FFX_OF=ON")
-	add_subdirectory(${FFX_COMPONENTS_PATH}/opticalflow)
-endif()
-
 # Add appropriate graphics backend if requested
 if (FFX_GRAPHICS_API STREQUAL "vk")
 	# Configure SPIRV-Tools to build as static libraries
-	# Neural Graphics SDK for Game Engines uses a custom fork of SPIRV-Tools with graph extensions
+	# Build SPIRV-Tools statically for the Vulkan backend.
 	set(SPIRV_TOOLS_BUILD_STATIC ON CACHE BOOL "" FORCE)
 	set(SPIRV_SKIP_EXECUTABLES ON CACHE BOOL "" FORCE)
 	set(SPIRV_SKIP_TESTS ON CACHE BOOL "" FORCE)
@@ -203,5 +189,4 @@ option(BUILD_TOOLS "Build the tools" OFF)
 message(STATUS "Build tools: ${BUILD_TOOLS}")
 if(BUILD_TOOLS)
 	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tools/ffx_shader_compiler)
-	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tools/ffx_model_parser)
 endif()

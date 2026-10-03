@@ -497,8 +497,6 @@ if(DEFINED FFX_PLATFORM_NAME AND TARGET ${SDK_LIB_NAME})
         ngsdk_${FFX_PLATFORM_NAME}
         ffx_backend_vk_${FFX_PLATFORM_NAME}
         ffx_nss_${FFX_PLATFORM_NAME}
-        ffx_frameinterpolation_${FFX_PLATFORM_NAME}
-        ffx_opticalflow_${FFX_PLATFORM_NAME}
         SPIRV-Tools-opt
         SPIRV-Tools)
 else()
@@ -536,8 +534,6 @@ else()
         "${NGSDK_ROOT}/bin/${_lib_prefix}ngsdk_${FFX_PLATFORM_NAME}${_cfg_postfix}${_lib_ext}"
         "${NGSDK_FFX_SDK_LIB_DIR}/${_lib_prefix}ffx_backend_vk_${FFX_PLATFORM_NAME}${_cfg_postfix}${_lib_ext}"
         "${NGSDK_FFX_SDK_LIB_DIR}/${_lib_prefix}ffx_nss_${FFX_PLATFORM_NAME}${_cfg_postfix}${_lib_ext}"
-        "${NGSDK_FFX_SDK_LIB_DIR}/${_lib_prefix}ffx_frameinterpolation_${FFX_PLATFORM_NAME}${_cfg_postfix}${_lib_ext}"
-        "${NGSDK_FFX_SDK_LIB_DIR}/${_lib_prefix}ffx_opticalflow_${FFX_PLATFORM_NAME}${_cfg_postfix}${_lib_ext}"
         "${NGSDK_FFX_SDK_LIB_DIR}/${_lib_prefix}SPIRV-Tools-opt${_cfg_postfix}${_lib_ext}"
         "${NGSDK_FFX_SDK_LIB_DIR}/${_lib_prefix}SPIRV-Tools${_cfg_postfix}${_lib_ext}")
 endif()

@@ -80,6 +80,12 @@ struct HPPType<VkPhysicalDeviceAccelerationStructureFeaturesKHR>
 };
 
 template <>
+struct HPPType<VkPhysicalDeviceShaderIntegerDotProductFeatures>
+{
+	using Type = vk::PhysicalDeviceShaderIntegerDotProductFeatures;
+};
+
+template <>
 struct HPPType<VkPhysicalDeviceBlendOperationAdvancedFeaturesEXT>
 {
 	using Type = vk::PhysicalDeviceBlendOperationAdvancedFeaturesEXT;

@@ -29,17 +29,6 @@
 #include <vulkan/vulkan.h>
 #include "../../../../sdk/include/FidelityFX/host/backends/vk/ffx_vk.h"
 
-/// FFX specific callback type when submitting a command buffer to a queue.
-typedef VkResult (*PFN_vkQueueSubmitFFXAPI)(uint32_t submitCount, const VkSubmitInfo* pSubmits, VkFence fence);
-
-/// Helper stucture
-struct VkQueueInfoFFXAPI
-{
-    VkQueue                 queue;        ///< the vulkan queue
-    uint32_t                familyIndex;  ///< the queue family index, that will be used to perform queue family ownership transfer
-    PFN_vkQueueSubmitFFXAPI submitFunc;   ///< an optional submit function in case there might be some concurrent submissions
-};
-
 #define FFX_API_CREATE_CONTEXT_DESC_TYPE_BACKEND_VK 0x0000003u
 struct ffxCreateBackendVKDesc
 {
@@ -49,107 +38,8 @@ struct ffxCreateBackendVKDesc
     VkInstance                 vkInstance;
     PFN_vkGetDeviceProcAddr    vkDeviceProcAddr;  ///< function pointer to get device procedure addresses
     PFN_vkGetInstanceProcAddr  vkGetInstanceProcAddr;
-};
-
-#define FFX_API_EFFECT_ID_FGSC_VK 0x00040000u
-
-#define FFX_API_CREATE_CONTEXT_DESC_TYPE_FGSWAPCHAIN_VK 0x40001u
-struct ffxCreateContextDescFrameGenerationSwapChainVK
-{
-    ffxCreateContextDescHeader header;
-    VkPhysicalDevice           physicalDevice;  ///< the physicak device used by the program.
-    VkDevice                   device;          ///< the logical device used by the program.
-    VkSwapchainKHR*
-                           swapchain;  ///< the current swapchain to be replaced. Will be destroyed when the context is created. This can be VK_NULL_HANDLE. Will contain the new swapchain on return.
-    VkAllocationCallbacks* allocator;  ///< optional allocation callbacks.
-    VkSwapchainCreateInfoKHR
-                      createInfo;  ///< the description of the desired swapchain. If its VkSwapchainCreateInfoKHR::oldSwapchain field isn't VK_NULL_HANDLE, it should be the same as the ffxCreateContextDescFrameGenerationSwapChainVK::swapchain field above.
-    VkQueueInfoFFXAPI gameQueue;   ///< the main graphics queue, where Present is called.
-    VkQueueInfoFFXAPI asyncComputeQueue;  ///< A queue with Compute capability.
-    VkQueueInfoFFXAPI presentQueue;       ///< A queue with Transfer and Present capabilities.
-    VkQueueInfoFFXAPI imageAcquireQueue;  ///< A queue with no capability required.
-};
-
-#define FFX_API_CONFIGURE_DESC_TYPE_FGSWAPCHAIN_REGISTERUIRESOURCE_VK 0x40002u
-struct ffxConfigureDescFrameGenerationSwapChainRegisterUiResourceVK
-{
-    ffxConfigureDescHeader header;
-    struct FfxApiResource  uiResource;  ///< Resource containing user interface for composition. May be empty.
-    uint32_t               flags;       ///< Zero or combination of values from FfxApiUiCompositionFlags.
-};
-
-#define FFX_API_QUERY_DESC_TYPE_FGSWAPCHAIN_INTERPOLATIONCOMMANDLIST_VK 0x40003u
-struct ffxQueryDescFrameGenerationSwapChainInterpolationCommandListVK
-{
-    ffxQueryDescHeader header;
-    void**             pOutCommandList;  ///< Output command nuffer (VkCommandBuffer) to be used for frame generation dispatch.
-};
-
-#define FFX_API_QUERY_DESC_TYPE_FGSWAPCHAIN_INTERPOLATIONTEXTURE_VK 0x40004u
-struct ffxQueryDescFrameGenerationSwapChainInterpolationTextureVK
-{
-    ffxQueryDescHeader     header;
-    struct FfxApiResource* pOutTexture;  ///< Output resource in which the frame interpolation result should be placed.
-};
-
-#define FFX_API_DISPATCH_DESC_TYPE_FGSWAPCHAIN_WAIT_FOR_PRESENTS_VK 0x40007u
-struct ffxDispatchDescFrameGenerationSwapChainWaitForPresentsVK
-{
-    ffxDispatchDescHeader header;
-};
-
-#define FFX_API_CONFIGURE_DESC_TYPE_FRAMEGENERATIONSWAPCHAIN_KEYVALUE_VK 0x40008u
-struct ffxConfigureDescFrameGenerationSwapChainKeyValueVK
-{
-    ffxConfigureDescHeader header;
-    uint64_t               key;  ///< Configuration key, member of the FfxApiConfigureFrameGenerationSwapChainKeyVK enumeration.
-    uint64_t               u64;  ///< Integer value or enum value to set.
-    void*                  ptr;  ///< Pointer to set or pointer to value to set.
-};
-
-//enum value matches enum FfxFrameInterpolationSwapchainConfigureKey
-enum FfxApiConfigureFrameGenerationSwapChainKeyVK
-{
-    FFX_API_CONFIGURE_FG_SWAPCHAIN_KEY_WAITCALLBACK      = 0,  ///< Sets FfxWaitCallbackFunc
-    FFX_API_CONFIGURE_FG_SWAPCHAIN_KEY_FRAMEPACINGTUNING = 2,  ///< Sets FfxApiSwapchainFramePacingTuning casted from ptr
-};
-
-#define FFX_API_QUERY_DESC_TYPE_FRAMEGENERATIONSWAPCHAIN_GPU_MEMORY_USAGE_VK 0x00040009u
-struct ffxQueryFrameGenerationSwapChainGetGPUMemoryUsageVK
-{
-    ffxQueryDescHeader              header;
-    struct FfxApiEffectMemoryUsage* gpuMemoryUsageFrameGenerationSwapchain;
-};
-
-/// Function to get the number of presents. This is useful when using frame interpolation
-typedef uint64_t (*PFN_getLastPresentCountFFXAPI)(VkSwapchainKHR);
-
-/// FFX API specific functions to create and destroy a swapchain
-typedef VkResult (*PFN_vkCreateSwapchainFFXAPI)(
-    VkDevice device, const VkSwapchainCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSwapchainKHR* pSwapchain, void* pContext);
-typedef void (*PFN_vkDestroySwapchainFFXAPI)(VkDevice device, VkSwapchainKHR swapchain, const VkAllocationCallbacks* pAllocator, void* pContext);
-
-#define FFX_API_QUERY_DESC_TYPE_FGSWAPCHAIN_FUNCTIONS_VK 0x40005u
-struct ffxQueryDescSwapchainReplacementFunctionsVK
-{
-    ffxQueryDescHeader header;
-    PFN_vkCreateSwapchainFFXAPI
-        pOutCreateSwapchainFFXAPI;  ///< Replacement of vkCreateSwapchainKHR. Can be called when swapchain is recreated but swapchain context isn't (for example when toggling vsync).
-    PFN_vkDestroySwapchainFFXAPI
-                                pOutDestroySwapchainFFXAPI;  ///< Replacement of vkDestroySwapchainKHR. Can be called when swapchain is destroyed but swapchain context isn't.
-    PFN_vkGetSwapchainImagesKHR pOutGetSwapchainImagesKHR;  ///< Replacement of vkGetSwapchainImagesKHR.
-    PFN_vkAcquireNextImageKHR   pOutAcquireNextImageKHR;    ///< Replacement of vkAcquireNextImageKHR.
-    PFN_vkQueuePresentKHR       pOutQueuePresentKHR;        ///< Replacement of vkQueuePresentKHR.
-    PFN_vkSetHdrMetadataEXT     pOutSetHdrMetadataEXT;      ///< Replacement of vkSetHdrMetadataEXT.
-    PFN_getLastPresentCountFFXAPI
-        pOutGetLastPresentCountFFXAPI;  ///< Additional function to get the number of times present has been called since the swapchain creation.
-};
-
-#define FFX_API_CREATE_CONTEXT_DESC_TYPE_FGSWAPCHAIN_MODE_VK 0x40010u
-struct ffxCreateContextDescFrameGenerationSwapChainModeVK
-{
-    ffxCreateContextDescHeader header;
-    bool                       composeOnPresentQueue;  ///< flags indicating that composition will happen on the present queue
+    VkQueue                    vkQueue;           ///< queue used for portable NSS DP4A initialization.
+    uint32_t                   queueFamilyIndex;  ///< family index for vkQueue.
 };
 
 static inline uint32_t ffxApiGetSurfaceFormatVK(VkFormat fmt)

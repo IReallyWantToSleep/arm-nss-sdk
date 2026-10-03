@@ -85,24 +85,6 @@ if(WIN32)
     if(NOT FFX_ARCH_NAME STREQUAL "x64")
 		message(WARNING "The architecture of windows is usually 'x64', while FFX_ARCH_NAME=${FFX_ARCH_NAME}")
 	endif()
-elseif(APPLE)
-    set(MACOS TRUE)
-    message("++ Building for MacOS")
-    if(NOT FFX_OS_NAME STREQUAL "macos")
-        message(FATAL_ERROR "The targeted OS does not match FFX_API_BACKEND")
-    endif()
-elseif(ANDROID)
-    set(ANDROID TRUE)
-    message("++ Building for Android")
-    add_definitions(-DFFX_PLATFORM_ANDROID=1)
-    if(NOT FFX_OS_NAME STREQUAL "android")
-        message(FATAL_ERROR "The targeted OS does not match FFX_API_BACKEND")
-    endif()
-
-    # unusual os + arch warning
-    if(NOT FFX_ARCH_NAME STREQUAL "arm")
-		message(WARNING "The architecture of android is usually 'arm', while FFX_ARCH_NAME=${FFX_ARCH_NAME}")
-	endif()
 elseif(UNIX)
     set(LINUX TRUE)
     message("++ Building for Linux")
@@ -153,10 +135,8 @@ if(NOT FFX_BUILD_AS_DLL)
 endif()
 
 set(FFX_GLSL ON)
-# disable ASR to focus on NSS part
+# Portable NSS-only build.
 set(FFX_NSS ON)
-set(FFX_FI ON)
-set(FFX_OF ON)
 
 add_subdirectory(./ffx-api)
 
@@ -164,6 +144,3 @@ option(FFX_BUILD_SAMPLES "Build the Sample code (samples/)" OFF)
 if(FFX_BUILD_SAMPLES)
     add_subdirectory(samples)
 endif()
-
-# Build the NG-feature Vulkan layer (VkLayer_arm_NG) alongside the SDK.
-add_subdirectory(layer)

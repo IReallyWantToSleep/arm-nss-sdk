@@ -37,8 +37,7 @@ FfxErrorCode ffxGetPermutationBlobByIndex(FfxEffect         effectId,
                                           FfxPass           passId,
                                           uint32_t          permutationOptions,
                                           FfxShaderBlob*    outBlob,
-                                          FfxShaderBlob*    outVertBlob      = nullptr,
-                                          FfxDataGraphBlob* outDataGraphBlob = nullptr);
+                                          FfxShaderBlob*    outVertBlob      = nullptr);
 
 // Check is Wave64 is requested on this permutation
 FfxErrorCode ffxIsWave64(FfxEffect effectId, uint32_t permutationOptions, bool& isWave64);

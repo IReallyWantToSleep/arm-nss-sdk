@@ -56,14 +56,6 @@ void StartSample::list_samples(bool one_per_line) const
 	        "NSS_USE_FRAGMENT=0|1    Execution path: 0=compute, 1=fragment (default: 1)",
 			"NSS_DEBUG_VIEW_MODE=0..16  Debug view mode: 0=overview, 1..16=single tile (default: 0)",
 	    }},
-	    {"nfru", {
-	        "NFRU_DATASET_DIR=path   Path to EXR dataset directory (enables dataset mode)",
-	        "NFRU_DATASET_SEQUENCE=N Dataset sequence ID (default: 0000)",
-	        "NFRU_SAVE_EXR=0|1       Save generated frames to EXR files (default: 0)",
-	        "NFRU_ORBIT_SPEED=float  Camera rotation speed in degrees/frame (default: 0.5)",
-	        "NFRU_USE_FRAGMENT=0|1   Execution path: 0=compute, 1=fragment (default: 0)",
-	        "NFRU_DEBUG_VIEW=0|1     Enable NFRU debug view at startup (default: 0)",
-	    }},
 	};
 
 	auto samples = apps::get_samples();

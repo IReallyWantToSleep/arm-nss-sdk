@@ -102,11 +102,6 @@
 /// @ingroup Defines
 #define FFX_MAX_NUM_RTS 8
 
-/// Maximum supported number of simultaneously bound tensors.
-///
-/// @ingroup Defines
-#define FFX_MAX_NUM_TENSORS 8
-
 /// Maximum number of constant buffers bound.
 ///
 /// @ingroup Defines
@@ -384,12 +379,8 @@ typedef enum FfxResourceStates
     FFX_RESOURCE_STATE_GENERIC_READ =
         (FFX_RESOURCE_STATE_COPY_SRC | FFX_RESOURCE_STATE_COMPUTE_READ),  ///< Indicates a resource is in generic (slow) read state.
     FFX_RESOURCE_STATE_INDIRECT_ARGUMENT = (1 << 7),                      ///< Indicates a resource is in the state to be used as an indirect command argument
-    FFX_RESOURCE_STATE_PRESENT           = (1 << 8),                      ///< Indicates a resource is in the state to be used to present to the swap chain
     FFX_RESOURCE_STATE_RENDER_TARGET     = (1 << 9),                      ///< Indicates a resource is in the state to be used as render target
-    FFX_RESOURCE_STATE_DATA_GRAPH_READ   = (1 << 10),                     ///< Indicates a resource is in the state to be read by data graph
-    FFX_RESOURCE_STATE_DATA_GRAPH_WRITE  = (1 << 11),                     ///< Indicates a resource is in the state to be written by data graph
-    // used by FrameInterpolationSwapchain
-    FFX_RESOURCE_STATE_DEPTH_ATTACHEMENT = (1 << 12),  ///< Indicates a resource is in the state to be used as depth attachment
+    FFX_RESOURCE_STATE_DEPTH_ATTACHEMENT = (1 << 10),  ///< Indicates a resource is in the state to be used as depth attachment
 
 } FfxResourceStates;
 
@@ -424,7 +415,6 @@ typedef enum FfxResourceFlags
 
     FFX_RESOURCE_FLAGS_NONE           = 0,         ///< No flags.
     FFX_RESOURCE_FLAGS_ALIASABLE      = (1 << 0),  ///< A bit indicating a resource does not need to persist across frames.
-    FFX_RESOURCE_FLAGS_IMAGE_ALIASED  = (1 << 1),  ///< A bit indicating a resource's (tensor or buffer) memory will be aliased to an image
     FFX_RESOURCE_FLAGS_BUFFER_ALIASED = (1 << 2),  ///< A bit indicating a resource creates an aliased buffer
     FFX_RESOURCE_FLAGS_UNDEFINED      = (1 << 3),  ///< Special case flag used internally when importing resources that require additional setup
 } FfxResourceFlags;
@@ -491,56 +481,7 @@ typedef enum FfxResourceType
     FFX_RESOURCE_TYPE_TEXTURE2D,     ///< The resource is a 2-dimensional texture.
     FFX_RESOURCE_TYPE_TEXTURE_CUBE,  ///< The resource is a cube map.
     FFX_RESOURCE_TYPE_TEXTURE3D,     ///< The resource is a 3-dimensional texture.
-    FFX_RESOURCE_TYPE_TENSOR,        ///< The resource is a tensor.
 } FfxResourceType;
-
-//TODO: check if there is a better place for these optical flow enums
-// An enumeration for different optical flow connection types
-///
-/// @ingroup SDKTypes
-typedef enum FfxOpticalFlowConnectionType
-{
-    FFX_OPTICAL_FLOW_CONNECTION_UNKNOWN,
-    FFX_OPTICAL_FLOW_CONNECTION_INPUT,
-    FFX_OPTICAL_FLOW_CONNECTION_REFERENCE,
-    FFX_OPTICAL_FLOW_CONNECTION_HINT,
-    FFX_OPTICAL_FLOW_CONNECTION_FLOW_VECTOR,
-    FFX_OPTICAL_FLOW_CONNECTION_BACKWARD_FLOW_VECTOR,
-    FFX_OPTICAL_FLOW_CONNECTION_COST,
-    FFX_OPTICAL_FLOW_CONNECTION_BACKWARD_COST,
-} FfxOpticalFlowConnectionType;
-
-// An enumeration for different optical flow grid sizes
-///
-/// @ingroup SDKTypes
-typedef enum FfxOpticalFlowGridSize
-{
-    FFX_OPTICAL_FLOW_GRID_SIZE_UNKNOWN = 0,
-    FFX_OPTICAL_FLOW_GRID_SIZE_1X1     = 1,
-    FFX_OPTICAL_FLOW_GRID_SIZE_2X2     = 2,
-    FFX_OPTICAL_FLOW_GRID_SIZE_4X4     = 4,
-    FFX_OPTICAL_FLOW_GRID_SIZE_8X8     = 8,
-} FfxOpticalFlowGridSize;
-
-// An enumeration for different optical flow grid sizes
-///
-/// @ingroup SDKTypes
-typedef enum FfxOpticalFlowPerformanceLevel
-{
-    FFX_OPTICAL_FLOW_PERFORMANCE_LEVEL_UNKNOWN,
-    FFX_OPTICAL_FLOW_PERFORMANCE_LEVEL_SLOW,
-    FFX_OPTICAL_FLOW_PERFORMANCE_LEVEL_MEDIUM,
-    FFX_OPTICAL_FLOW_PERFORMANCE_LEVEL_FAST
-} FfxOpticalFlowPerformanceLevel;
-
-typedef enum FfxDataGraphOpticalFlowExecuteFlagBits
-{
-    FFX_DATA_GRAPH_OPTICAL_FLOW_EXECUTE_DISABLE_TEMPORAL_HINTS      = (1 << 0),
-    FFX_DATA_GRAPH_OPTICAL_FLOW_EXECUTE_INPUT_UNCHANGED             = (1 << 1),
-    FFX_DATA_GRAPH_OPTICAL_FLOW_EXECUTE_REFERENCE_UNCHANGED         = (1 << 2),
-    FFX_DATA_GRAPH_OPTICAL_FLOW_EXECUTE_INPUT_IS_PREVIOUS_REFERENCE = (1 << 3),
-    FFX_DATA_GRAPH_OPTICAL_FLOW_EXECUTE_REFERENCE_IS_PREVIOUS_INPUT = (1 << 4),
-} FfxDataGraphOpticalFlowExecuteFlagBits;
 
 /// An enumeration for different heap types
 ///
@@ -565,8 +506,8 @@ typedef enum FfxGpuJobType
     FFX_GPU_JOB_BARRIER     = 3,  ///< The GPU job is performing a barrier.
     FFX_GPU_JOB_DISCARD     = 4,  ///< The GPU job is performing a floating-point clear.
     FFX_GPU_JOB_FRAGMENT    = 5,  ///< The GPU job is performing a fragment pass.
-    FFX_GPU_JOB_DATA_GRAPH  = 6,  ///< The GPU job is performing a data graph pass.
-    FFX_GPU_JOB_CLEAR_UINT  = 7   ///< The GPU job is performing an unsigned integer clear.
+    FFX_GPU_JOB_CLEAR_UINT  = 6,  ///< The GPU job is performing an unsigned integer clear.
+    FFX_GPU_JOB_NSS_DP4A    = 7   ///< The GPU job is performing the portable NSS DP4A inference.
 } FfxGpuJobType;
 
 /// An enumeration for various descriptor types
@@ -660,8 +601,6 @@ typedef void* FfxDevice;
 
 typedef void* FfxCommandQueue;
 
-typedef void* FfxSwapchain;
-
 /// A typedef representing a command list or command buffer.
 ///
 /// @ingroup SDKTypes
@@ -746,11 +685,6 @@ typedef struct FfxEffectBindlessConfig
     uint32_t maxBufferUavs;   ///< Maximum number of buffer UAVs needed in the bindless table.
 } FfxEffectBindlessConfig;
 
-/// A structure encapsulating the bindless descriptor configuration of an effect.
-///
-/// @ingroup SDKTypes
-typedef void* FfxDataGraphPipelineSession;
-
 /// A structure encapsulating a collection of device capabilities.
 ///
 /// @ingroup SDKTypes
@@ -766,19 +700,6 @@ typedef struct FfxDeviceCapabilities
     bool           bufferMarkerSupported;                       ///< The device supports AMD buffer markers.
     bool           extendedSynchronizationSupported;            ///< The device supports extended synchronization mechanism.
     bool           shaderStorageBufferArrayNonUniformIndexing;  ///< The device supports shader storage buffer array non uniform indexing.
-    bool           tensorSupported;                             ///< The device supports tensors.
-    bool           computeSupportTensor;                        ///< The device supports tensors in compute stage.
-    bool           fragmentSupportTensor;                       ///< The device supports tensors in fragment stage.
-    bool           dataGraphSupported;                          ///< The device supports data graphs.
-    bool           dataGraphOFSupported;                        ///< The device supports data graph optical flow.
-    bool           costSupported;                               ///< The device supports cost map generation in the data graph optical flow.
-    bool           hintSupported;                               ///< The device supports hint flow vector map in the data graph optical flow.
-    uint32_t       supportedOutputGridSizes;                    ///< The supported output grid sizes bit mask for the data graph optical flow.
-    uint32_t       supportedHintGridSizes;                      ///< The supported hint grid sizes bit mask for the data graph optical flow.
-    uint32_t       dataGraphOFMinWidth;                         ///< The minimum width for data graph optical flow.
-    uint32_t       dataGraphOFMinHeight;                        ///< The minimum height for data graph optical flow.
-    uint32_t       dataGraphOFMaxWidth;                         ///< The maximum width for the data graph optical flow.
-    uint32_t       dataGraphOFMaxHeight;                        ///< The maximum height for the data graph optical flow.
 } FfxDeviceCapabilities;
 
 /// A structure encapsulating a 2-dimensional point, using 32bit unsigned integers.
@@ -789,17 +710,6 @@ typedef struct FfxDimensions2D
     uint32_t width;   ///< The width of a 2-dimensional range.
     uint32_t height;  ///< The height of a 2-dimensional range.
 } FfxDimensions2D;
-
-/// A structure encapsulating a tensor.
-///
-/// @ingroup SDKTypes
-struct FfxTensorInfo
-{
-    uint32_t width;      ///< The width of a 2-dimensional range.
-    uint32_t height;     ///< The height of a 2-dimensional range.
-    uint32_t channels;   ///< The channels of the tensor.
-    uint32_t shapeSize;  ///< The size of a tensor shape in bytes.
-};
 
 /// A structure encapsulating a 2-dimensional point.
 ///
@@ -845,23 +755,19 @@ typedef struct FfxResourceDescription
 
     union
     {
-        uint32_t height;  ///< The height of the texture/tensor resource.
+        uint32_t height;  ///< The height of the texture resource.
         uint32_t stride;  ///< The stride of the buffer resource.
     };
 
     union
     {
-        uint32_t depth;      ///< The depth of the texture/tensor resource.
+        uint32_t depth;      ///< The depth of the texture resource.
         uint32_t alignment;  ///< The alignment of the buffer resource.
-        uint32_t channel;    ///< The channel of tensor resource.
     };
 
     uint32_t         mipCount;  ///< Number of mips (or 0 for full mipchain).
     FfxResourceFlags flags;     ///< A set of <c><i>FfxResourceFlags</i></c> flags.
     FfxResourceUsage usage;     ///< Resource usage flags.
-
-    uint32_t batchSize;  ///< Only used by tensor resource.
-    uint32_t shapeSize;  ///< Only used by tensor resource.
 
 } FfxResourceDescription;
 
@@ -983,19 +889,7 @@ typedef struct FfxInternalResourceDescription
     uint32_t            mipCount;
     FfxResourceFlags    flags;
     FfxResourceInitData initData;
-    uint32_t            batchSize;
-    uint32_t            channel;
-    uint32_t            shapeSize;
 } FfxInternalResourceDescription;
-
-/// Tensor aliasing metadata used for data-graph pipeline creation.
-///
-/// @ingroup SDKTypes
-typedef struct FfxDataGraphTensorInfo
-{
-    const char* resourceName;   ///< Tensor resource name from shader/data-graph reflection.
-    bool        bufferAliased;  ///< True when this tensor is expected to be accessed through a buffer alias.
-} FfxDataGraphTensorInfo;
 
 /// A structure defining the view to create
 ///
@@ -1044,7 +938,6 @@ typedef struct FfxPipelineState
     uint32_t                    passId;                 ///< The id of the effect pass this pipeline corresponds to
     FfxCommandSignature         cmdSignature;           ///< The command signature used for indirect workloads
     FfxPipeline                 pipeline;               ///< The pipeline object
-    FfxDataGraphPipelineSession session;                ///< The pipeline object
     uint32_t                    uavTextureCount;        ///< Count of Texture UAVs used in this pipeline
     uint32_t                    srvTextureCount;        ///< Count of Texture SRVs used in this pipeline
     uint32_t                    srvBufferCount;         ///< Count of Buffer SRV used in this pipeline
@@ -1055,8 +948,6 @@ typedef struct FfxPipelineState
     uint32_t                    staticBufferUavCount;   ///< Count of static Buffer UAVs used in this pipeline
     uint32_t                    constCount;             ///< Count of constant buffers used in this pipeline
     uint32_t                    rtCount;
-    uint32_t                    uavTensorCount;
-    uint32_t                    srvTensorCount;
 
     FfxResourceBinding uavTextureBindings[FFX_MAX_NUM_UAVS];               ///< Array of ResourceIdentifiers bound as texture UAVs
     FfxResourceBinding srvTextureBindings[FFX_MAX_NUM_SRVS];               ///< Array of ResourceIdentifiers bound as texture SRVs
@@ -1064,11 +955,6 @@ typedef struct FfxPipelineState
     FfxResourceBinding uavBufferBindings[FFX_MAX_NUM_UAVS];                ///< Array of ResourceIdentifiers bound as buffer UAVs
     FfxResourceBinding constantBufferBindings[FFX_MAX_NUM_CONST_BUFFERS];  ///< Array of ResourceIdentifiers bound as CBs
     FfxResourceBinding rtBindings[FFX_MAX_NUM_RTS];                        ///< Array of ResourceIdentifiers bound as RenderTargets
-
-    // Potentially we need to split tensor bindings into separate arrays for each type.
-    // Similar to srv/uav buffers. For now we just have one array as in Unreal 5.6 there is no difference.
-    FfxResourceBinding srvTensorBindings[FFX_MAX_NUM_TENSORS];  ///< Array of ResourceIdentifiers bound as tensor SRVs
-    FfxResourceBinding uavTensorBindings[FFX_MAX_NUM_TENSORS];  ///< Array of ResourceIdentifiers bound as tensor UAVs
 
     char name[FFX_RESOURCE_NAME_SIZE];  ///< Pipeline name for debugging/profiling purposes
 } FfxPipelineState;
@@ -1146,8 +1032,6 @@ typedef struct FfxPipelineDescription
     FfxBindStage                      stage;                         ///< The stage(s) for which this pipeline is being built
     uint32_t                          indirectWorkload;              ///< Whether this pipeline has an indirect workload
     FfxSurfaceFormat                  backbufferFormat;              ///< For raster pipelines this contains the backbuffer format
-    const FfxDataGraphTensorInfo*     dataGraphTensorInfo;           ///< Optional tensor aliasing metadata used by data-graph backends.
-    uint32_t                          dataGraphTensorInfoCount;      ///< Number of elements in <c><i>dataGraphTensorInfo</i></c>.
 } FfxPipelineDescription;
 
 /// A structure containing the data required to create a barrier
@@ -1179,14 +1063,6 @@ typedef struct FfxTextureSRV
     char name[FFX_RESOURCE_NAME_SIZE];
 #endif
 } FfxTextureSRV;
-
-typedef struct FfxTensor
-{
-    FfxResourceInternal resource;  ///< Resource corresponding to the tensor.
-#ifdef FFX_DEBUG
-    char name[FFX_RESOURCE_NAME_SIZE];
-#endif
-} FfxTensor;
 
 /// A structure containing a shader resource view.
 typedef struct FfxBufferSRV
@@ -1253,9 +1129,6 @@ typedef struct FfxComputeJobDescription
     FfxBufferSRV        srvBuffers[FFX_MAX_NUM_SRVS];     ///< SRV buffer resources to be bound in the compute job.
     FfxTextureUAV       uavTextures[FFX_MAX_NUM_UAVS];    ///< UAV texture resources to be bound in the compute job.
     FfxBufferUAV        uavBuffers[FFX_MAX_NUM_UAVS];     ///< UAV buffer resources to be bound in the compute job.
-    FfxTensor           srvTensors[FFX_MAX_NUM_TENSORS];  ///< SRV tensor resources to be bound in the compute job.
-    FfxTensor           uavTensors[FFX_MAX_NUM_TENSORS];  ///< UAV tensor resources to be bound in the compute job.
-
     FfxConstantBuffer cbs[FFX_MAX_NUM_CONST_BUFFERS];  ///< Constant buffers to be bound in the compute job.
 #ifdef FFX_DEBUG
     char cbNames[FFX_MAX_NUM_CONST_BUFFERS][FFX_RESOURCE_NAME_SIZE];
@@ -1265,7 +1138,6 @@ typedef struct FfxComputeJobDescription
     char srvBufferNames[FFX_MAX_NUM_SRVS][64];
     char uavBufferNames[FFX_MAX_NUM_UAVS][64];
     char sampledTextureNames[FFX_MAX_NUM_SRVS][64];
-    char tensorNames[FFX_MAX_NUM_TENSORS][64];
 #endif
     uint32_t uavTextureMips[FFX_MAX_NUM_UAVS];  ///< Mip level of UAV texture resources to be bound in the compute job.
 } FfxComputeJobDescription;
@@ -1282,8 +1154,6 @@ typedef struct FfxFragmentJobDescription
     FfxTextureUAV     uavTextures[FFX_MAX_NUM_UAVS];    ///< UAV texture resources to be bound in the fragment job.
     FfxTextureRT      rtTextures[FFX_MAX_NUM_RTS];      ///< RT texture resources to be bound in the fragment job.
     FfxBufferUAV      uavBuffers[FFX_MAX_NUM_UAVS];     ///< UAV buffer resources to be bound in the fragment job.
-    FfxTensor         srvTensors[FFX_MAX_NUM_TENSORS];  ///< SRV tensor resources to be bound in the fragment job.
-    FfxTensor         uavTensors[FFX_MAX_NUM_TENSORS];  ///< UAV tensor resources to be bound in the fragment job.
     FfxConstantBuffer cbs[FFX_MAX_NUM_CONST_BUFFERS];   ///< Constant buffers to be bound in the fragment job.
 #ifdef FFX_DEBUG
     char cbNames[FFX_MAX_NUM_CONST_BUFFERS][FFX_RESOURCE_NAME_SIZE];
@@ -1309,19 +1179,17 @@ typedef struct FfxRasterJobDescription
 #endif
 } FfxRasterJobDescription;
 
-/// A structure describing a data graph job.
-///
-/// @ingroup SDKTypes
-typedef struct FfxDataGraphJobDescription
+/// A portable NSS inference job. The Vulkan backend owns the concrete
+/// dp4a context and resolves the resource handles before recording it.
+typedef struct FfxNssDp4aJobDescription
 {
-    FfxPipelineState pipeline;                         ///< Data graph pipeline for the render job.
-    FfxTensor        srvTensors[FFX_MAX_NUM_TENSORS];  ///< SRV tensor resources to be bound in the compute job.
-    FfxTensor        uavTensors[FFX_MAX_NUM_TENSORS];  ///< UAV tensor resources to be bound in the compute job.
-    FfxTextureSRV    srvTextures[FFX_MAX_NUM_SRVS];    ///< SRV texture resources to be bound in the data graph job.
-    FfxTextureUAV    uavTextures[FFX_MAX_NUM_UAVS];    ///< UAV texture resources to be bound in the data graph job.
-    uint32_t         opticalFlowExecuteFlags;          ///< Optional optical flow execute flags.
-    uint32_t         meanFlowL1NormHint;               ///< Optional mean L1 norm flow hint. 0 means backend default.
-} FfxDataGraphJobDescription;
+    void*              context;
+    FfxResourceInternal input;
+    FfxResourceInternal outputKpn;
+    FfxResourceInternal outputTemporal;
+    uint32_t            width;
+    uint32_t            height;
+} FfxNssDp4aJobDescription;
 
 /// An enumeration for different copy mode for GPU copy job
 ///
@@ -1381,8 +1249,8 @@ typedef struct FfxGpuJobDescription
         FfxRasterJobDescription   rasterJobDescriptor;
         FfxBarrierDescription     barrierDescriptor;
         FfxDiscardJobDescription  discardJobDescriptor;
-        FfxDataGraphJobDescription
-            dataGraphJobDescription;  ///< Data graph job descriptor. Valid when <c><i>jobType</i></c> is <c><i>FFX_GPU_JOB_DATA_GRAPH</i></c>.
+        FfxNssDp4aJobDescription
+            nssDp4aJobDescription;  ///< Portable NSS DP4A job descriptor.
         FfxClearUintJobDescription
             clearUintJobDescriptor;  ///< Clear job descriptor. Valid when <c><i>jobType</i></c> is <c><i>FFX_RENDER_JOB_CLEAR_UINT</i></c>.
     };
@@ -1397,16 +1265,15 @@ typedef struct FfxGpuJobDescription
     {                                                                                                                                                          \
         info[index].blobData, info[index].blobSize, info[index].numConstantBuffers, info[index].numSRVTextures, info[index].numUAVTextures,                    \
             info[index].numSRVBuffers, info[index].numUAVBuffers, info[index].numSamplers, info[index].numRTAccelerationStructures, info[index].numRTTextures, \
-            info[index].numSRVTensors, info[index].numUAVTensors, info[index].constantBufferNames, info[index].constantBufferBindings,                         \
-            info[index].constantBufferCounts, info[index].constantBufferSpaces, info[index].srvTextureNames, info[index].srvTextureBindings,                   \
-            info[index].srvTextureCounts, info[index].srvTextureSpaces, info[index].uavTextureNames, info[index].uavTextureBindings,                           \
-            info[index].uavTextureCounts, info[index].uavTextureSpaces, info[index].srvBufferNames, info[index].srvBufferBindings,                             \
-            info[index].srvBufferCounts, info[index].srvBufferSpaces, info[index].uavBufferNames, info[index].uavBufferBindings, info[index].uavBufferCounts,  \
-            info[index].uavBufferSpaces, info[index].samplerNames, info[index].samplerBindings, info[index].samplerCounts, info[index].samplerSpaces,          \
+            info[index].constantBufferNames, info[index].constantBufferBindings, info[index].constantBufferCounts, info[index].constantBufferSpaces,            \
+            info[index].srvTextureNames, info[index].srvTextureBindings, info[index].srvTextureCounts, info[index].srvTextureSpaces,                           \
+            info[index].uavTextureNames, info[index].uavTextureBindings, info[index].uavTextureCounts, info[index].uavTextureSpaces,                           \
+            info[index].srvBufferNames, info[index].srvBufferBindings, info[index].srvBufferCounts, info[index].srvBufferSpaces,                               \
+            info[index].uavBufferNames, info[index].uavBufferBindings, info[index].uavBufferCounts, info[index].uavBufferSpaces,                               \
+            info[index].samplerNames, info[index].samplerBindings, info[index].samplerCounts, info[index].samplerSpaces,                                      \
             info[index].rtAccelerationStructureNames, info[index].rtAccelerationStructureBindings, info[index].rtAccelerationStructureCounts,                  \
-            info[index].rtAccelerationStructureSpaces, info[index].rtTextureNames, info[index].rtTextureBindings, info[index].rtTextureCounts,                 \
-            info[index].rtTextureSpaces, info[index].srvTensorNames, info[index].srvTensorBindings, info[index].srvTensorCounts, info[index].srvTensorSpaces,  \
-            info[index].uavTensorNames, info[index].uavTensorBindings, info[index].uavTensorCounts, info[index].uavTensorSpaces                                \
+            info[index].rtAccelerationStructureSpaces, info[index].rtTextureNames, info[index].rtTextureBindings, info[index].rtTextureCounts,                \
+            info[index].rtTextureSpaces                                                                                                                       \
     }
 
 // A single shader blob and a description of its resources.
@@ -1425,9 +1292,6 @@ typedef struct FfxShaderBlob
     const uint32_t samplerCount;        // Number of Samplers.
     const uint32_t rtAccelStructCount;  // Number of RT Acceleration structures.
     const uint32_t rtTextureCount;      // Number of RenderTarget textures.
-    const uint32_t srvTensorCount;      // Number of Tensors.
-    const uint32_t uavTensorCount;      // Number of Tensors.
-
     // constant buffers
     const char**    boundConstantBufferNames;
     const uint32_t* boundConstantBuffers;       // Pointer to an array of bound ConstantBuffers.
@@ -1476,129 +1340,7 @@ typedef struct FfxShaderBlob
     const uint32_t* boundRTTextureCounts;  // Pointer to an array of bound rt texture resource counts
     const uint32_t* boundRTTextureSpaces;  // Pointer to an array of bound rt texture resource descriptor sets
 
-    // tensors
-    const char**    boundSRVTensorNames;
-    const uint32_t* boundSRVTensors;       // Pointer to an array of bound tensor resources.
-    const uint32_t* boundSRVTensorCounts;  // Pointer to an array of bound tensor resource counts
-    const uint32_t* boundSRVTensorSpaces;  // Pointer to an array of bound tensor resource descriptor sets
-
-    // tensors
-    const char**    boundUAVTensorNames;
-    const uint32_t* boundUAVTensors;       // Pointer to an array of bound tensor resources.
-    const uint32_t* boundUAVTensorCounts;  // Pointer to an array of bound tensor resource counts
-    const uint32_t* boundUAVTensorSpaces;  // Pointer to an array of bound tensor resource descriptor sets
-
 } FfxShaderBlob;
-
-typedef struct FfxDataGraphBlob
-{
-    const uint32_t        constantNums;
-    const uint32_t*       constantIds;
-    const uint32_t*       constantFormats;
-    const uint32_t*       constantShapeSize;
-    const int64_t**       constantShapes;
-    const int64_t*        constantSparsityDimensions;
-    const uint32_t*       constantDataSize;
-    const unsigned char** constantDatas;
-
-    const char*          graphEntryPoint;
-    const uint32_t       graphDataSize;
-    const unsigned char* graphData;
-
-    const uint32_t  inputTensorNums;
-    const char**    inputTensorNames;
-    const uint32_t* inputTensorSets;
-    const uint32_t* inputTensorBindings;
-    const uint32_t* inputTensorFormats;
-    const uint32_t* inputTensorDimSize;
-    const int64_t** inputTensorDims;
-
-    const uint32_t  outputTensorNums;
-    const char**    outputTensorNames;
-    const uint32_t* outputTensorSets;
-    const uint32_t* outputTensorBindings;
-    const uint32_t* outputTensorFormats;
-    const uint32_t* outputTensorDimSize;
-    const int64_t** outputTensorDims;
-} FfxDataGraphBlob;
-
-// A description of resources for an optical flow dispatch.
-///
-/// @ingroup SDKTypes
-typedef struct FfxOpticalFlowDescription
-{
-    uint32_t srvTextureCount;  // Number of SRV Textures.
-    uint32_t uavTextureCount;  // Number of UAV Textures.
-    uint32_t srvTensorCount;   // Number of SRV Tensors.
-    uint32_t uavTensorCount;   // Number of UAV Tensors.
-
-    // SRV textures
-    const char**                  boundSRVTextureNames;
-    uint32_t*                     boundSRVTextures;               // Pointer to an array of bound SRV resources.
-    uint32_t*                     boundSRVTextureCounts;          // Pointer to an array of bound SRV resource counts
-    uint32_t*                     boundSRVTextureSpaces;          // Pointer to an array of bound SRV resource descriptor sets
-    FfxOpticalFlowConnectionType* boundSRVTextureConnectionType;  // Pointer to an array of bound SRV resource connection types
-    FfxSurfaceFormat*             boundSRVTextureFormats;
-
-    // UAV textures
-    const char**                  boundUAVTextureNames;
-    uint32_t*                     boundUAVTextures;               // Pointer to an array of bound UAV texture resources.
-    uint32_t*                     boundUAVTextureCounts;          // Pointer to an array of bound UAV texture resource counts
-    uint32_t*                     boundUAVTextureSpaces;          // Pointer to an array of bound UAV texture resource descriptor sets
-    FfxOpticalFlowConnectionType* boundUAVTextureConnectionType;  // Pointer to an array of bound UAV resource connection types
-    FfxSurfaceFormat*             boundUAVTextureFormats;
-
-    // SRV tensors
-    const char**                  boundSRVTensorNames;
-    uint32_t*                     boundSRVTensors;               // Pointer to an array of bound SRV tensor resources.
-    uint32_t*                     boundSRVTensorCounts;          // Pointer to an array of bound SRV tensor resource counts
-    uint32_t*                     boundSRVTensorSpaces;          // Pointer to an array of bound SRV tensor resource descriptor sets
-    FfxOpticalFlowConnectionType* boundSRVTensorConnectionType;  // Pointer to an array of bound SRV tensor connection types
-    FfxSurfaceFormat*             boundSRVTensorFormats;
-
-    // UAV tensors
-    const char**                  boundUAVTensorNames;
-    uint32_t*                     boundUAVTensors;               // Pointer to an array of bound UAV tensor resources.
-    uint32_t*                     boundUAVTensorCounts;          // Pointer to an array of bound UAV tensor resource counts
-    uint32_t*                     boundUAVTensorSpaces;          // Pointer to an array of bound UAV tensor resource descriptor sets
-    FfxOpticalFlowConnectionType* boundUAVTensorConnectionType;  // Pointer to an array of bound UAV tensor connection types
-    FfxSurfaceFormat*             boundUAVTensorFormats;
-
-    // OF metadata
-    FfxDimensions2D                dimensions;
-    FfxOpticalFlowGridSize         gridSize;
-    FfxOpticalFlowPerformanceLevel performanceLevel;
-
-} FfxOpticalFlowDescription;
-
-/// A structure describing the parameters passed from the
-/// presentation thread to the ui composition callback function.
-///
-/// @ingroup SDKTypes
-typedef struct FfxPresentCallbackDescription
-{
-    FfxDevice      device;                 ///< The active device
-    FfxCommandList commandList;            ///< The command list on which to register render commands
-    FfxResource    currentBackBuffer;      ///< The backbuffer resource with scene information
-    FfxResource    currentUI;              ///< Optional UI texture (when doing backbuffer + ui blend)
-    FfxResource    outputSwapChainBuffer;  ///< The swapchain target into which to render ui composition
-    bool           isInterpolatedFrame;    ///< Whether this is an interpolated or real frame
-    bool           usePremulAlpha;         ///< Toggles whether UI gets premultiplied alpha blending or not
-    uint64_t       frameID;
-} FfxPresentCallbackDescription;
-
-/// A structure describing the parameters to pass to frame generation passes.
-///
-/// @ingroup SDKTypes
-typedef struct FfxFrameGenerationDispatchDescription
-{
-    FfxCommandList commandList;            ///< The command list on which to register render commands
-    FfxResource    presentColor;           ///< The current presentation color, this will be used as interpolation source data.
-    FfxResource    outputs[4];             ///< Interpolation destination targets (1 for each frame in numInterpolatedFrames)
-    uint32_t       numInterpolatedFrames;  ///< The number of frames to interpolate from the passed in color target
-    bool           reset;                  ///< A boolean value which when set to true, indicates the camera has moved discontinuously.
-    uint64_t       frameID;
-} FfxFrameGenerationDispatchDescription;
 
 //struct definition matches FfxApiEffectMemoryUsage
 typedef struct FfxEffectMemoryUsage
@@ -1606,17 +1348,6 @@ typedef struct FfxEffectMemoryUsage
     uint64_t totalUsageInBytes;
     uint64_t aliasableUsageInBytes;
 } FfxEffectMemoryUsage;
-
-//struct definition matches FfxApiSwapchainFramePacingTuning
-typedef struct FfxSwapchainFramePacingTuning
-{
-    float safetyMarginInMs;  // in Millisecond
-    float varianceFactor;    // valid range [0.0,1.0]
-    bool  allowHybridSpin;   //Allows pacing spinlock to sleep.
-    uint32_t
-         hybridSpinTime;  //How long to spin when hybridSpin is enabled. Measured in timer resolution units. Not recommended to go below 2. Will result in frequent overshoots.
-    bool allowWaitForSingleObjectOnFence;  //Allows to call WaitForSingleObject() instead of spinning for fence value.
-} FfxSwapchainFramePacingTuning;
 
 #ifdef __cplusplus
 }

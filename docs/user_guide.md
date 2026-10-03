@@ -493,10 +493,8 @@ The following image introduces the file structure of the Neural Graphics SDK for
     │   │   │   ├── frameinterpolation     #Frame interpolation (part of NFRU).
     │   │   │   ├── opticalflow            #Optical flow (part of NFRU).
     │   │   │   ├── ...
-    │   ├── tools                          #These tools will be executed automatically to
-    │   │   │                               analyze shaders and model file when running CMake.
+    │   ├── tools                          #Shader compiler and development utilities.
     │   │   ├── binary_store               #Pre-built tool binaries.
-    │   │   ├── ffx_model_parser           #Model parser.
     │   │   ├── ffx_shader_compiler        #Shader compiler.
     ├── samples                            #Sample applications.
     │   ├── src

@@ -4,33 +4,6 @@
 #include <FidelityFX/host/ffx_util.h>
 #include <FidelityFX/host/ffx_assert.h>
 
-FfxDimensions2D GetOpticalFlowTextureSizeFromBlockSize(const FfxDimensions2D& displaySize, const uint32_t opticalFlowBlockSize)
-{
-    FFX_ASSERT(opticalFlowBlockSize != 0);
-
-    uint32_t width  = (displaySize.width + opticalFlowBlockSize - 1) / opticalFlowBlockSize;
-    uint32_t height = (displaySize.height + opticalFlowBlockSize - 1) / opticalFlowBlockSize;
-    return {width, height};
-}
-
-uint32_t GetOpticalFlowBlockSize(const FfxOpticalFlowGridSize gridSize)
-{
-    switch (gridSize)
-    {
-    case FFX_OPTICAL_FLOW_GRID_SIZE_8X8:
-        return 8;
-    case FFX_OPTICAL_FLOW_GRID_SIZE_4X4:
-        return 4;
-    case FFX_OPTICAL_FLOW_GRID_SIZE_2X2:
-        return 2;
-    case FFX_OPTICAL_FLOW_GRID_SIZE_1X1:
-        return 1;
-    case FFX_OPTICAL_FLOW_GRID_SIZE_UNKNOWN:
-    default:
-        return 1;  //let's be safe and not crash here...
-    }
-}
-
 // Code taken from MESA implementation of GLU
 // Under terms of the SGI FREE SOFTWARE LICENSE B (Version 2.0, Sept. 18, 2008)
 // https://cgit.freedesktop.org/mesa/glu/tree/src/libutil/project.c
